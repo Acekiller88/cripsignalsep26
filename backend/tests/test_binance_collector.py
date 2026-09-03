@@ -143,3 +143,11 @@ def test_fetch_candles_since_and_ticker(collector):
     assert asyncio.run(collector.get_last_price("ETHUSDT")) == pytest.approx(12345.6)
     ok, info = asyncio.run(collector.check_connection())
     assert ok and "testnet" in info
+
+
+def test_unsupported_symbols_detected_on_start(collector):
+    asyncio.run(collector.start(["BTCUSDT", "SOLUSDT", "ETHUSDT"]))
+    assert collector.unsupported_symbols == ["SOLUSDT"]
+    assert collector.stats()["unsupported_symbols"] == ["SOLUSDT"]
+    ok, info = asyncio.run(collector.check_connection())
+    assert ok and "unsupported symbols: SOLUSDT" in info

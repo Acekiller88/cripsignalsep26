@@ -29,7 +29,7 @@ PostgreSQL history → live performance dashboard. Runs unattended 24/7 in Docke
 - ✅ Performance: win rate, profit factor, expectancy, total PnL, max drawdown, TP hit rates, streaks, per-symbol / per-side / per-conviction breakdowns, equity curve
 - ✅ REST API (Swagger at `/docs`) + health checks; Streamlit dashboard with live status, active signals, history, charts, market snapshot and per-signal drill-down
 - ✅ **Backtester** that replays the exact production logic over historical candles
-- ✅ Offline **synthetic data source** for demos / CI, 49 automated tests
+- ✅ Offline **synthetic data source** for demos / CI, 58 automated tests
 
 ---
 
@@ -50,7 +50,7 @@ crypto-signal-bot/
 │   ├── database.py             # SQLAlchemy models, engine, sessions, migrations
 │   ├── backtest.py             # Historical backtester
 │   ├── utils.py                # Logging, timeframe/time helpers, retry/backoff
-│   ├── tests/                  # pytest suite (49 tests)
+│   ├── tests/                  # pytest suite (58 tests)
 │   ├── Dockerfile
 │   └── requirements.txt
 ├── frontend/
@@ -58,7 +58,15 @@ crypto-signal-bot/
 │   ├── Dockerfile
 │   └── requirements.txt
 ├── docs/
-│   └── DEPLOYMENT.md           # Oracle Cloud (free tier) step-by-step guide
+│   ├── DEPLOYMENT.md           # Oracle Cloud (free tier) step-by-step guide
+│   └── OPERATOR_GUIDE.md       # Task catalogue for the (AI) operator running the server
+├── scripts/
+│   ├── deploy.sh               # Install Docker, write .env, build, start, verify
+│   ├── verify.sh               # Full health/config/API/dashboard verification report
+│   ├── report_status.sh        # Daily status & performance report
+│   ├── smoke_local.sh          # Validate code vs. real Binance without Docker (tests, --check, backtest)
+│   ├── telegram_test.sh        # Validate bot token / channel id with curl
+│   └── report_lib.py           # Formatting helpers used by the scripts
 ├── docker-compose.yml
 ├── requirements.txt            # backend + frontend + dev tools
 ├── .env.example
@@ -69,8 +77,19 @@ crypto-signal-bot/
 
 ## Quick start (Docker – recommended)
 
+One-liner on a fresh Ubuntu server (installs Docker, writes `.env`, builds, starts, verifies):
+
 ```bash
-git clone <this repo> crypto-signal-bot && cd crypto-signal-bot
+git clone -b arena/01a06815-cripsignalsep26 https://github.com/Acekiller88/cripsignalsep26.git crypto-signal-bot
+cd crypto-signal-bot && chmod +x scripts/*.sh
+TELEGRAM_BOT_TOKEN='123:abc' TELEGRAM_CHANNEL_ID='-100123' ./scripts/deploy.sh
+./scripts/verify.sh            # anytime: full health report
+./scripts/report_status.sh 7   # daily: performance report
+```
+
+Manual equivalent:
+
+```bash
 cp .env.example .env
 nano .env            # TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL_ID, (optional) Binance keys
 docker compose up -d --build
@@ -126,7 +145,7 @@ cd backend
 python main.py --check          # DB / exchange / Telegram self-test
 python main.py --once           # one screening cycle, prints JSON summary
 python main.py                  # 24/7 bot + API on :8000
-python -m pytest                # 49 tests (uses SQLite + synthetic data, no network)
+python -m pytest                # 58 tests (uses SQLite + synthetic data, no network)
 
 cd ../frontend
 streamlit run dashboard.py      # dashboard on :8501 (reads DATABASE_URL / API_URL)

@@ -129,6 +129,7 @@ class BinanceDataCollector:
         self.rest_calls = 0
         self.rest_failures = 0
         self.last_rest_error: Optional[str] = None
+        self.unsupported_symbols: List[str] = []
 
     # ------------------------------------------------------------------
     @property
@@ -162,6 +163,11 @@ class BinanceDataCollector:
         symbols = symbols or list(self.settings.trading_pairs)
         try:
             await self._ensure_markets()
+            self.unsupported_symbols = [s for s in symbols if to_ccxt_symbol(s) not in self.rest.markets]
+            if self.unsupported_symbols:
+                logger.warning("Symbols not listed on %s: %s — they will be skipped",
+                               self.endpoint, ", ".join(self.unsupported_symbols))
+                symbols = [s for s in symbols if s not in self.unsupported_symbols]
         except Exception as exc:
             logger.error("Could not load markets (will retry on demand): %s", exc)
         if self.ws is not None:
@@ -341,7 +347,9 @@ class BinanceDataCollector:
             await self._ensure_markets()
             t0 = time.time()
             await self.rest.fetch_time()
-            return True, f"OK ({(time.time() - t0) * 1000:.0f} ms, {self.endpoint})"
+            missing = [s for s in self.settings.trading_pairs if to_ccxt_symbol(s) not in self.rest.markets]
+            extra = f", unsupported symbols: {', '.join(missing)}" if missing else ""
+            return True, f"OK ({(time.time() - t0) * 1000:.0f} ms, {self.endpoint}, {len(self.rest.markets)} markets{extra})"
         except Exception as exc:
             return False, f"{type(exc).__name__}: {str(exc)[:200]}"
 
@@ -355,6 +363,7 @@ class BinanceDataCollector:
             "rest_calls": self.rest_calls,
             "rest_failures": self.rest_failures,
             "last_rest_error": self.last_rest_error,
+            "unsupported_symbols": list(self.unsupported_symbols),
             "cached_streams": {f"{s}:{tf}": len(b) for (s, tf), b in self._cache.items()},
         }
 

@@ -192,7 +192,11 @@ class SignalBot:
             logger.info("──── Screening cycle #%d started (%s) ────", self.cycles_completed + 1, self.s.timeframe)
             summary = {"started": self.last_cycle_started.isoformat(), "symbols": {}, "signals": []}
             new_signals: List[int] = []
+            unsupported = set(getattr(self.collector, "unsupported_symbols", []) or [])
             for symbol in self.s.trading_pairs:
+                if symbol in unsupported:
+                    summary["symbols"][symbol] = {"skipped": "symbol_not_listed_on_exchange"}
+                    continue
                 try:
                     outcome = await self._screen_symbol(symbol, force=force)
                     summary["symbols"][symbol] = outcome
