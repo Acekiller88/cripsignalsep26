@@ -17,7 +17,7 @@ ROOT="$(pwd)"
 DAYS="${BACKTEST_DAYS:-30}"
 PY="${PYTHON:-python3}"
 VENV="$ROOT/.venv-smoke"
-declare -a LINES; PASS=0; FAIL=0; WARN=0
+declare -a LINES; PASS=0; FAIL=0; WARN=0; LIVE_BLOCKED=0
 ok()   { PASS=$((PASS+1)); LINES+=("PASS  $1"); }
 bad()  { FAIL=$((FAIL+1)); LINES+=("FAIL  $1"); }
 warn() { WARN=$((WARN+1)); LINES+=("WARN  $1"); }
@@ -34,9 +34,10 @@ if pip install -q -r backend/requirements-dev.txt; then ok "dependencies install
 
 section "unit tests (offline)"
 cd backend
-TEST_OUT="$(python -m pytest -q 2>&1 | tail -3)"
+TEST_OUT="$(python -m pytest -p no:warnings 2>&1 | tail -15)"
 echo "$TEST_OUT"
-if echo "$TEST_OUT" | grep -qE "^[0-9]+ passed" && ! echo "$TEST_OUT" | grep -q failed; then ok "pytest: $(echo "$TEST_OUT" | grep -oE '[0-9]+ passed')"; else bad "pytest failures – see output above"; fi
+SUMMARY="$(echo "$TEST_OUT" | grep -E '^[0-9]+ passed|^=+ .*(passed|failed|error).* =+$' | tail -1)"
+if [[ -n "$SUMMARY" ]] && ! echo "$SUMMARY" | grep -qE "failed|error"; then ok "pytest: $SUMMARY"; else bad "pytest failures: ${SUMMARY:-no summary line} – see output above"; fi
 
 run_check() {  # $1 label, rest = env assignments
   local label="$1"; shift
@@ -44,7 +45,9 @@ run_check() {  # $1 label, rest = env assignments
   out="$(env "$@" DATABASE_URL="sqlite:///$ROOT/smoke_$label.db" TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-}" TELEGRAM_CHANNEL_ID="${TELEGRAM_CHANNEL_ID:-}" timeout 180 python main.py --check 2>&1 | grep -vE '^\s*$')"
   echo "$out"
   if echo "$out" | grep -q "RESULT: ALL OK"; then ok "--check [$label]"; else
-    if echo "$out" | grep -qiE "451|restricted location|Service unavailable from a restricted"; then bad "--check [$label]: Binance blocks this server's region (HTTP 451) – deploy in another region (e.g. Singapore/Tokyo/Frankfurt)"
+    if echo "$out" | grep -qiE "451|restricted location|Service unavailable from a restricted"; then
+      bad "--check [$label]: Binance blocks this server's region (HTTP 451) – deploy in another region (e.g. Singapore/Tokyo/Frankfurt)"
+      [[ "$label" == "live" ]] && LIVE_BLOCKED=1
     else bad "--check [$label] reported problems"; fi
   fi
   info "self-test [$label]:"$'\n'"$(echo "$out" | sed 's/^/  /')"
@@ -62,8 +65,9 @@ echo "$ONCE" | tail -60
 if echo "$ONCE" | grep -q '"duration_s"'; then ok "--once completed on testnet"; else bad "--once failed on testnet"; fi
 info "cycle log:"$'\n'"$(echo "$ONCE" | grep -E 'close=|NEW SIGNAL|blocked|skipping|WARNING|ERROR' | sed 's/^/  /' | head -20)"
 
-section "websocket smoke (live endpoint, 40 s)"
-WS_OUT="$(DATA_SOURCE=binance BINANCE_TESTNET=false ENABLE_WEBSOCKET=true DATABASE_URL="sqlite:///$ROOT/smoke_ws.db" timeout 60 python - <<'EOF' 2>&1
+WS_TESTNET=false; [[ "${LIVE_BLOCKED:-0}" == "1" ]] && WS_TESTNET=true
+section "websocket smoke ($([[ $WS_TESTNET == true ]] && echo testnet || echo live) endpoint, 40 s)"
+WS_OUT="$(DATA_SOURCE=binance BINANCE_TESTNET=$WS_TESTNET ENABLE_WEBSOCKET=true DATABASE_URL="sqlite:///$ROOT/smoke_ws.db" timeout 60 python - <<'EOF' 2>&1
 import asyncio, time
 from config import settings
 from data_collector import BinanceDataCollector
@@ -84,16 +88,19 @@ asyncio.run(main())
 EOF
 )"
 echo "$WS_OUT" | tail -5
-if echo "$WS_OUT" | grep -q WS_CONNECTED; then ok "websocket stream connected (live)"; else warn "websocket did not connect within 40 s (REST fallback will be used): $(echo "$WS_OUT" | tail -1)"; fi
+if echo "$WS_OUT" | grep -q WS_CONNECTED; then ok "websocket stream connected ($([[ $WS_TESTNET == true ]] && echo testnet || echo live))"; else warn "websocket did not connect within 40 s (REST fallback will be used): $(echo "$WS_OUT" | tail -1)"; fi
 
-section "backtest ${DAYS} days on LIVE history (default parameters)"
-BT="$(DATA_SOURCE=binance BINANCE_TESTNET=false ENABLE_WEBSOCKET=false DATABASE_URL="sqlite:///$ROOT/smoke_live.db" LOG_LEVEL=WARNING timeout 900 python backtest.py --days "$DAYS" 2>&1 | grep -vE '^\S+ \| ')"
+# Live history is preferred (testnet prices are thin/unrealistic); fall back to testnet when live is blocked.
+BT_TESTNET=false; BT_LABEL="live"
+if [[ "${LIVE_BLOCKED:-0}" == "1" ]]; then BT_TESTNET=true; BT_LABEL="TESTNET (live endpoint blocked in this region – results are indicative only)"; fi
+section "backtest ${DAYS} days on ${BT_LABEL} history (default parameters)"
+BT="$(DATA_SOURCE=binance BINANCE_TESTNET=$BT_TESTNET ENABLE_WEBSOCKET=false DATABASE_URL="sqlite:///$ROOT/smoke_bt.db" LOG_LEVEL=WARNING timeout 900 python backtest.py --days "$DAYS" 2>&1 | grep -vE '^\S+ \| ')"
 echo "$BT"
-if echo "$BT" | grep -q "BACKTEST"; then ok "backtest completed"; info "backtest (${DAYS}d, live history):"$'\n'"$(echo "$BT" | sed 's/^/  /')"; else bad "backtest failed"; fi
+if echo "$BT" | grep -q "BACKTEST"; then ok "backtest completed (${BT_LABEL%% *} history)"; info "backtest (${DAYS}d, ${BT_LABEL}):"$'\n'"$(echo "$BT" | sed 's/^/  /')"; else bad "backtest failed"; fi
 
 section "backtest variants (for tuning)"
 for v in "--min-conviction 60" "--require-htf" "--require-htf --min-conviction 60" "--sl-atr 1.5"; do
-  R="$(DATA_SOURCE=binance BINANCE_TESTNET=false ENABLE_WEBSOCKET=false DATABASE_URL="sqlite:///$ROOT/smoke_live.db" LOG_LEVEL=WARNING timeout 900 python backtest.py --days "$DAYS" $v 2>&1 | grep -E 'Signals  |Win rate|Total PnL|Profit factor|Expectancy' | tr -s ' ' | tr '\n' ';')"
+  R="$(DATA_SOURCE=binance BINANCE_TESTNET=$BT_TESTNET ENABLE_WEBSOCKET=false DATABASE_URL="sqlite:///$ROOT/smoke_bt.db" LOG_LEVEL=WARNING timeout 900 python backtest.py --days "$DAYS" $v 2>&1 | grep -E 'Signals  |Win rate|Total PnL|Profit factor|Expectancy' | tr -s ' ' | tr '\n' ';')"
   echo "  [$v] $R"; info "variant [$v]: $R"
 done
 
