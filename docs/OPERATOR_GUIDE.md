@@ -61,7 +61,13 @@ and **live** connectivity (read-only), runs one screening cycle, tests the
 WebSocket stream, and runs a 60-day backtest plus four parameter variants on
 live history. Takes 3-8 minutes.
 Report: the REPORT block. If it contains `HTTP 451`, the server region is blocked
-– stop and report; the developer will ask the owner for another region.
+– the script automatically falls back to testnet history for the backtest (marked
+"indicative only"); report it, the developer will ask the owner for another region.
+
+Reference run (GitHub Actions runner, US region, 2026-09-03): testnet `ALL OK`,
+live `HTTP 451`, WebSocket OK, 60-day testnet backtest 422 signals / WR 51.7% /
+PF 1.14 – i.e. `summary: PASS=6 WARN=0 FAIL=1` is the expected result from a
+blocked region, and `PASS=7 FAIL=0` from an allowed one.
 
 ### T2 – validate Telegram
 
