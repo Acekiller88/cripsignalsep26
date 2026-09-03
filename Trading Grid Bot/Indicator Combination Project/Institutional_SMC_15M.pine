@@ -1,0 +1,658 @@
+//@version=6
+// =============================================================================================
+//  INSTITUTIONAL SMC DECISION ENGINE — 15M CRYPTO FUTURES
+//  Rebuilt from scratch per "Project Alpha" specification.
+//  1D -> 4H -> 1H (bias)  ->  15M (execution)
+//  Adaptive weighted-confluence scoring: strong core confluence (Trend + Structure + Liquidity)
+//  can compensate for weaker secondary factors (Momentum / Volume), while risk management is
+//  NEVER compromised. Target ~3-10 qualifying signals / week / major pair in normal conditions.
+//  No repaint: HTF pulls use confirmed-bar offsets + lookahead_off; internal structure uses
+//  confirmed pivots (ta.pivothigh/low only resolve after `len` bars); signals gate on
+//  barstate.isconfirmed.
+// =============================================================================================
+indicator("Institutional SMC Decision Engine [15M Crypto]", shorttitle="ISMC-15M", overlay=true,
+     max_boxes_count=200, max_lines_count=200, max_labels_count=200, max_bars_back=500)
+
+// #############################################################################################
+// INPUTS
+// #############################################################################################
+
+// ---- Module 1: Trend Engine (HTF Bias) ----------------------------------------------------
+grpTrend = "Module 1 — Trend Engine (HTF Bias)"
+htfDaily  = input.timeframe("D",   "Daily Timeframe",  group=grpTrend)
+htf4h     = input.timeframe("240", "4H Timeframe",     group=grpTrend)
+htf1h     = input.timeframe("60",  "1H Timeframe",     group=grpTrend)
+emaFastLen = input.int(21, "HTF Fast EMA", minval=2, group=grpTrend,
+     tooltip="21 EMA reacts fast enough on Daily/4H/1H to catch fresh trend shifts without excess lag — standard swing-desk default.")
+emaSlowLen = input.int(50, "HTF Slow EMA", minval=5, group=grpTrend,
+     tooltip="50 EMA is the classic institutional 'trend filter' length — smooths noise while staying responsive on crypto's 24/7 volatility.")
+
+// ---- Module 2: Market Structure Engine (SMC) -----------------------------------------------
+grpStruct = "Module 2 — Market Structure Engine"
+extLen = input.int(15, "External (Major) Swing Length", minval=3, group=grpStruct,
+     tooltip="15 bars on 15M (~3.75h) approximates a meaningful HTF-relevant swing without lagging too far behind price — captures true external structure.")
+intLen = input.int(5, "Internal (Minor) Swing Length", minval=2, group=grpStruct,
+     tooltip="5 bars is short enough to catch intraday internal shifts (needed for OB/FVG anchoring) while still filtering single-candle noise.")
+eqTolPerc = input.float(0.06, "Equal High/Low Tolerance (%)", minval=0.01, step=0.01, group=grpStruct,
+     tooltip="0.06% tolerance accounts for crypto's tick-level noise around resting liquidity without conflating unrelated swing levels.")
+
+// ---- Module 3: Liquidity Engine -------------------------------------------------------------
+grpLiq = "Module 3 — Liquidity Engine"
+sweepLookback = input.int(6, "Sweep Validity Window (bars)", minval=1, group=grpLiq,
+     tooltip="A sweep must be followed by structure/OB/FVG confluence within ~1.5h (6x15m) or the setup is considered stale.")
+
+// ---- Module 4: Order Block Engine ------------------------------------------------------------
+grpOB = "Module 4 — Order Block Engine"
+obSearchBack = input.int(10, "OB Search-Back Range (bars)", minval=2, maxval=30, group=grpOB,
+     tooltip="Look back up to 10 bars from a structure break to find the last opposite-colour candle — far enough to find real OBs, tight enough to stay fresh.")
+maxOB = input.int(6, "Max Order Blocks per Side (chart clutter control)", minval=1, maxval=15, group=grpOB)
+
+// ---- Module 5: Fair Value Gap Engine ----------------------------------------------------------
+grpFVG = "Module 5 — Fair Value Gap Engine"
+maxFVG = input.int(6, "Max FVGs per Side (chart clutter control)", minval=1, maxval=15, group=grpFVG)
+fvgMinATRPerc = input.float(0.15, "Minimum FVG Size (x ATR)", minval=0.0, step=0.05, group=grpFVG,
+     tooltip="Filters micro-gaps that are statistical noise rather than genuine imbalance — 0.15x ATR is a light, non-restrictive floor.")
+
+// ---- Module 6: Volume Engine --------------------------------------------------------------
+grpVol = "Module 6 — Volume Engine"
+volSmaLen = input.int(20, "Volume SMA Length", minval=5, group=grpVol)
+volSpikeMult = input.float(1.3, "Volume Spike Multiplier", minval=1.0, step=0.05, group=grpVol,
+     tooltip="1.3x average is a realistic 'above normal participation' bar for crypto futures — 1.5x+ is reserved for climax detection only.")
+volClimaxMult = input.float(2.2, "Volume Climax Multiplier", minval=1.5, step=0.1, group=grpVol)
+volLowFloor = input.float(0.55, "Low-Volume Reject Floor (x avg)", minval=0.1, step=0.05, group=grpVol,
+     tooltip="Below 0.55x average volume, moves are considered unreliable/thin and are penalised, not auto-rejected (adaptive scoring).")
+
+// ---- Module 7: Volatility Engine (ATR) -----------------------------------------------------
+grpATR = "Module 7 — Volatility Engine"
+atrLen = input.int(14, "ATR Length", minval=2, group=grpATR)
+atrLowPerc  = input.float(0.12, "Low-ATR Threshold (% of price)", minval=0.01, step=0.01, group=grpATR,
+     tooltip="Below ~0.12% ATR/price, 15M crypto is effectively range-bound/dead — trading here has poor expectancy.")
+atrHighPerc = input.float(1.10, "Extreme-ATR Threshold (% of price)", minval=0.1, step=0.05, group=grpATR,
+     tooltip="Above ~1.10% ATR/price, volatility is abnormal (news/liquidation cascade) — stops become unreliable.")
+
+// ---- Module 8: Momentum Engine -------------------------------------------------------------
+grpMom = "Module 8 — Momentum Engine"
+strongBodyRatio = input.float(0.55, "Strong Body Ratio (body/range)", minval=0.1, maxval=0.95, step=0.05, group=grpMom)
+
+// ---- Module 9: Institutional Decision Engine (Adaptive Weighted Score) --------------------
+grpScore = "Module 9 — Decision Engine (Adaptive Scoring)"
+wTrend  = input.float(25, "Weight: Trend %",       minval=0, maxval=100, group=grpScore)
+wStruct = input.float(20, "Weight: Structure %",    minval=0, maxval=100, group=grpScore)
+wLiq    = input.float(15, "Weight: Liquidity %",    minval=0, maxval=100, group=grpScore)
+wOB     = input.float(15, "Weight: Order Block %",  minval=0, maxval=100, group=grpScore)
+wFVG    = input.float(10, "Weight: FVG %",          minval=0, maxval=100, group=grpScore)
+wMom    = input.float(5,  "Weight: Momentum %",     minval=0, maxval=100, group=grpScore)
+wVolu   = input.float(5,  "Weight: Volume %",       minval=0, maxval=100, group=grpScore)
+wATRw   = input.float(5,  "Weight: Volatility %",   minval=0, maxval=100, group=grpScore)
+
+signalScoreMin = input.int(78, "Minimum Score to Fire a Signal", minval=50, maxval=100, group=grpScore,
+     tooltip="Adaptive floor. 78 (not 90) is deliberate: core-module strength can already dominate the weighted total, so a rigid 90+ gate would suppress almost all opportunities. Raise toward 85-90 for fewer/stronger signals, lower toward 70-75 for more frequent ones. Target calibration: ~3-10 signals/week/pair.")
+institutionalGradeMin = input.int(90, "Institutional-Grade Label Threshold", minval=signalScoreMin, maxval=100, group=grpScore)
+coreFloorMin = input.int(55, "Core Confluence Floor (Trend+Structure+Liquidity avg)", minval=0, maxval=100, group=grpScore,
+     tooltip="Even with compensation from secondary factors, the three critical institutional modules must still average above this floor. Prevents 'weak trend, big volume spike' from faking a signal.")
+signalCooldown = input.int(4, "Cooldown Between Signals (bars)", minval=0, maxval=50, group=grpScore,
+     tooltip="Prevents rapid re-firing on the same structural move; 4 bars (~1h on 15M) is enough separation while keeping frequency healthy.")
+
+// ---- Module 10: Risk Management -------------------------------------------------------------
+grpRisk = "Module 10 — Risk Management Engine"
+atrSLMult = input.float(1.8, "ATR Stop Multiplier", minval=0.5, step=0.1, group=grpRisk,
+     tooltip="1.8x ATR clears normal 15M crypto noise/wicks without being so wide it wrecks risk-reward — desk-tested middle ground.")
+structBufferATR = input.float(0.25, "Structure SL Buffer (x ATR)", minval=0, step=0.05, group=grpRisk)
+tp1R = input.float(1.5, "TP1 (R multiple)", minval=0.1, step=0.1, group=grpRisk)
+tp2R = input.float(2.5, "TP2 (R multiple)", minval=0.1, step=0.1, group=grpRisk)
+tp3R = input.float(4.0, "TP3 (R multiple)", minval=0.1, step=0.1, group=grpRisk)
+trailAtrMult = input.float(2.0, "Trailing Stop (x ATR, active after TP1)", minval=0.5, step=0.1, group=grpRisk)
+
+// ---- Visuals ---------------------------------------------------------------------------------
+grpVis = "Visual Settings"
+showOB   = input.bool(true, "Show Order Blocks", group=grpVis)
+showFVG  = input.bool(true, "Show Fair Value Gaps", group=grpVis)
+showSwe  = input.bool(true, "Show Liquidity Sweeps", group=grpVis)
+showDash = input.bool(true, "Show Dashboard", group=grpVis)
+colBull = input.color(color.new(#00c853, 0), "Bullish Colour", group=grpVis)
+colBear = input.color(color.new(#ff1744, 0), "Bearish Colour", group=grpVis)
+
+// #############################################################################################
+// MODULE 1 — TREND ENGINE (HTF BIAS, NON-REPAINTING)
+// #############################################################################################
+// Uses [1] offset inside the security expression so we always read the LAST CONFIRMED HTF bar —
+// this value cannot change once printed, so it never repaints regardless of realtime intrabar ticks.
+f_htfBias() =>
+    ef = ta.ema(close[1], emaFastLen)
+    es = ta.ema(close[1], emaSlowLen)
+    bull = ef > es
+    bear = ef < es
+    [bull, bear]
+
+[dBull, dBear] = request.security(syminfo.tickerid, htfDaily, f_htfBias(), lookahead=barmerge.lookahead_off)
+[h4Bull, h4Bear] = request.security(syminfo.tickerid, htf4h, f_htfBias(), lookahead=barmerge.lookahead_off)
+[h1Bull, h1Bear] = request.security(syminfo.tickerid, htf1h, f_htfBias(), lookahead=barmerge.lookahead_off)
+
+// Native 15M direction (chart timeframe) — pure EMA read, structure confirmation happens in Module 2
+m15EmaFast = ta.ema(close, emaFastLen)
+m15EmaSlow = ta.ema(close, emaSlowLen)
+m15Bull = m15EmaFast > m15EmaSlow
+m15Bear = m15EmaFast < m15EmaSlow
+
+// Weighted trend sub-scores (0-100), computed independently for bull-case and bear-case
+trendBullScore = (dBull ? 40.0 : 0.0) + (h4Bull ? 30.0 : 0.0) + (h1Bull ? 20.0 : 0.0) + (m15Bull ? 10.0 : 0.0)
+trendBearScore = (dBear ? 40.0 : 0.0) + (h4Bear ? 30.0 : 0.0) + (h1Bear ? 20.0 : 0.0) + (m15Bear ? 10.0 : 0.0)
+
+// #############################################################################################
+// MODULE 2 — MARKET STRUCTURE ENGINE (BOS / CHoCH / SWINGS / PREMIUM-DISCOUNT)
+// #############################################################################################
+extPH = ta.pivothigh(extLen, extLen)
+extPL = ta.pivotlow(extLen, extLen)
+intPH = ta.pivothigh(intLen, intLen)
+intPL = ta.pivotlow(intLen, intLen)
+
+var float extSwingHigh = na
+var float extSwingLow  = na
+var float intSwingHigh = na
+var float intSwingLow  = na
+var float prevExtSwingLow  = na   // becomes "protected low" once a bullish BOS uses it
+var float prevExtSwingHigh = na   // becomes "protected high" once a bearish BOS uses it
+
+if not na(extPH)
+    prevExtSwingHigh := extSwingHigh
+    extSwingHigh := extPH
+if not na(extPL)
+    prevExtSwingLow := extSwingLow
+    extSwingLow := extPL
+if not na(intPH)
+    intSwingHigh := intPH
+if not na(intPL)
+    intSwingLow := intPL
+
+var int extTrend = 0     // 1 bull, -1 bear, 0 undefined
+var int intTrend = 0
+var float protectedLow  = na
+var float protectedHigh = na
+
+extBOSbull = not na(extSwingHigh) and ta.crossover(close, extSwingHigh)
+extBOSbear = not na(extSwingLow)  and ta.crossunder(close, extSwingLow)
+intBOSbull = not na(intSwingHigh) and ta.crossover(close, intSwingHigh)
+intBOSbear = not na(intSwingLow)  and ta.crossunder(close, intSwingLow)
+
+extCHoCHbull = extBOSbull and extTrend == -1   // first bullish break of a bearish structure
+extCHoCHbear = extBOSbear and extTrend == 1    // first bearish break of a bullish structure
+
+if extBOSbull
+    extTrend := 1
+    protectedLow := prevExtSwingLow   // the low that must now hold
+if extBOSbear
+    extTrend := -1
+    protectedHigh := prevExtSwingHigh // the high that must now hold
+
+if intBOSbull
+    intTrend := 1
+if intBOSbear
+    intTrend := -1
+
+// Premium / Discount / Equilibrium (based on the current external range)
+eqLevel = (nz(extSwingHigh, close) + nz(extSwingLow, close)) / 2.0
+inPremium   = not na(extSwingHigh) and not na(extSwingLow) and close > eqLevel
+inDiscount  = not na(extSwingHigh) and not na(extSwingLow) and close < eqLevel
+
+structBullScore = (extTrend == 1 ? 50.0 : 0.0) + (intTrend == 1 ? 30.0 : 0.0) + (extCHoCHbull ? 20.0 : 0.0) + (extTrend != 1 and intTrend == 1 ? 10.0 : 0.0)
+structBearScore = (extTrend == -1 ? 50.0 : 0.0) + (intTrend == -1 ? 30.0 : 0.0) + (extCHoCHbear ? 20.0 : 0.0) + (extTrend != -1 and intTrend == -1 ? 10.0 : 0.0)
+structBullScore := math.min(structBullScore, 100.0)
+structBearScore := math.min(structBearScore, 100.0)
+
+// #############################################################################################
+// MODULE 3 — LIQUIDITY ENGINE (SWEEPS / EQUAL HIGHS-LOWS)
+// #############################################################################################
+atrVal = ta.atr(atrLen)
+eqTol = close * eqTolPerc / 100.0
+
+// Equal highs/lows: current internal pivot close to the previous external swing level
+equalHigh = not na(intSwingHigh) and not na(extSwingHigh) and math.abs(intSwingHigh - extSwingHigh) <= eqTol
+equalLow  = not na(intSwingLow)  and not na(extSwingLow)  and math.abs(intSwingLow  - extSwingLow)  <= eqTol
+
+// A sweep = price wicks beyond a swing level intrabar but CLOSES back inside it (liquidity grab, no follow-through)
+sweepBull = not na(extSwingLow)  and low  < extSwingLow  and close > extSwingLow
+sweepBear = not na(extSwingHigh) and high > extSwingHigh and close < extSwingHigh
+
+var int barsSinceSweepBull = 999
+var int barsSinceSweepBear = 999
+barsSinceSweepBull := sweepBull ? 0 : barsSinceSweepBull + 1
+barsSinceSweepBear := sweepBear ? 0 : barsSinceSweepBear + 1
+
+sweepBullRecent = barsSinceSweepBull <= sweepLookback
+sweepBearRecent = barsSinceSweepBear <= sweepLookback
+
+liquidityBullScore = sweepBullRecent ? 100.0 : (equalLow ? 45.0 : 0.0)
+liquidityBearScore = sweepBearRecent ? 100.0 : (equalHigh ? 45.0 : 0.0)
+
+if showSwe and sweepBull
+    label.new(bar_index, low, "SFP", style=label.style_label_up, color=color.new(colBull, 20), textcolor=color.white, size=size.tiny)
+if showSwe and sweepBear
+    label.new(bar_index, high, "SFP", style=label.style_label_down, color=color.new(colBear, 20), textcolor=color.white, size=size.tiny)
+
+// #############################################################################################
+// MODULE 4 — ORDER BLOCK ENGINE
+// #############################################################################################
+var array<box> bullOBBoxes = array.new<box>()
+var array<box> bearOBBoxes = array.new<box>()
+var array<float> bullOBTop = array.new<float>()
+var array<float> bullOBBot = array.new<float>()
+var array<bool>  bullOBFresh = array.new<bool>()
+var array<float> bearOBTop = array.new<float>()
+var array<float> bearOBBot = array.new<float>()
+var array<bool>  bearOBFresh = array.new<bool>()
+
+f_pushOB(isBull) =>
+    // search back up to obSearchBack bars for the last opposite-colour candle before this structural break
+    idx = -1
+    for i = 1 to obSearchBack
+        if isBull and close[i] < open[i]
+            idx := i
+            break
+        if not isBull and close[i] > open[i]
+            idx := i
+            break
+    idx
+
+if intBOSbull
+    obIdx = f_pushOB(true)
+    if obIdx >= 0
+        top = open[obIdx] > close[obIdx] ? open[obIdx] : close[obIdx]
+        bot = low[obIdx]
+        bx = box.new(bar_index[obIdx], top, bar_index + 20, bot, border_color=colBull, bgcolor=color.new(colBull, 85), extend=extend.none)
+        array.unshift(bullOBBoxes, bx)
+        array.unshift(bullOBTop, top)
+        array.unshift(bullOBBot, bot)
+        array.unshift(bullOBFresh, true)
+        if array.size(bullOBBoxes) > maxOB
+            box.delete(array.pop(bullOBBoxes))
+            array.pop(bullOBTop)
+            array.pop(bullOBBot)
+            array.pop(bullOBFresh)
+
+if intBOSbear
+    obIdx = f_pushOB(false)
+    if obIdx >= 0
+        top = high[obIdx]
+        bot = open[obIdx] < close[obIdx] ? open[obIdx] : close[obIdx]
+        bx = box.new(bar_index[obIdx], top, bar_index + 20, bot, border_color=colBear, bgcolor=color.new(colBear, 85), extend=extend.none)
+        array.unshift(bearOBBoxes, bx)
+        array.unshift(bearOBTop, top)
+        array.unshift(bearOBBot, bot)
+        array.unshift(bearOBFresh, true)
+        if array.size(bearOBBoxes) > maxOB
+            box.delete(array.pop(bearOBBoxes))
+            array.pop(bearOBTop)
+            array.pop(bearOBBot)
+            array.pop(bearOBFresh)
+
+// Mitigation check + price-in-zone check (runs every confirmed bar)
+priceInFreshBullOB = false
+priceInFreshBearOB = false
+if array.size(bullOBBoxes) > 0
+    for i = 0 to array.size(bullOBBoxes) - 1
+        top = array.get(bullOBTop, i)
+        bot = array.get(bullOBBot, i)
+        fresh = array.get(bullOBFresh, i)
+        if fresh and close < bot
+            array.set(bullOBFresh, i, false)
+            box.set_bgcolor(array.get(bullOBBoxes, i), color.new(color.gray, 90))
+        else if fresh and low <= top and low >= bot
+            priceInFreshBullOB := true
+        if showOB
+            box.set_right(array.get(bullOBBoxes, i), bar_index + 5)
+
+if array.size(bearOBBoxes) > 0
+    for i = 0 to array.size(bearOBBoxes) - 1
+        top = array.get(bearOBTop, i)
+        bot = array.get(bearOBBot, i)
+        fresh = array.get(bearOBFresh, i)
+        if fresh and close > top
+            array.set(bearOBFresh, i, false)
+            box.set_bgcolor(array.get(bearOBBoxes, i), color.new(color.gray, 90))
+        else if fresh and high >= bot and high <= top
+            priceInFreshBearOB := true
+        if showOB
+            box.set_right(array.get(bearOBBoxes, i), bar_index + 5)
+
+obBullScore = priceInFreshBullOB ? 100.0 : (array.size(bullOBBoxes) > 0 and array.get(bullOBFresh, 0) ? 55.0 : 20.0)
+obBearScore = priceInFreshBearOB ? 100.0 : (array.size(bearOBBoxes) > 0 and array.get(bearOBFresh, 0) ? 55.0 : 20.0)
+
+// #############################################################################################
+// MODULE 5 — FAIR VALUE GAP ENGINE
+// #############################################################################################
+bullFVGraw = low > high[2] and (low - high[2]) > atrVal * fvgMinATRPerc
+bearFVGraw = high < low[2]  and (low[2] - high) > atrVal * fvgMinATRPerc
+
+var array<box> bullFVGBoxes = array.new<box>()
+var array<box> bearFVGBoxes = array.new<box>()
+var array<float> bullFVGTop = array.new<float>()
+var array<float> bullFVGBot = array.new<float>()
+var array<bool>  bullFVGFresh = array.new<bool>()
+var array<float> bearFVGTop = array.new<float>()
+var array<float> bearFVGBot = array.new<float>()
+var array<bool>  bearFVGFresh = array.new<bool>()
+
+if bullFVGraw
+    top = low
+    bot = high[2]
+    bx = box.new(bar_index[2], top, bar_index + 20, bot, border_color=color.new(colBull, 40), bgcolor=color.new(colBull, 88), extend=extend.none)
+    array.unshift(bullFVGBoxes, bx)
+    array.unshift(bullFVGTop, top)
+    array.unshift(bullFVGBot, bot)
+    array.unshift(bullFVGFresh, true)
+    if array.size(bullFVGBoxes) > maxFVG
+        box.delete(array.pop(bullFVGBoxes))
+        array.pop(bullFVGTop)
+        array.pop(bullFVGBot)
+        array.pop(bullFVGFresh)
+
+if bearFVGraw
+    top = low[2]
+    bot = high
+    bx = box.new(bar_index[2], top, bar_index + 20, bot, border_color=color.new(colBear, 40), bgcolor=color.new(colBear, 88), extend=extend.none)
+    array.unshift(bearFVGBoxes, bx)
+    array.unshift(bearFVGTop, top)
+    array.unshift(bearFVGBot, bot)
+    array.unshift(bearFVGFresh, true)
+    if array.size(bearFVGBoxes) > maxFVG
+        box.delete(array.pop(bearFVGBoxes))
+        array.pop(bearFVGTop)
+        array.pop(bearFVGBot)
+        array.pop(bearFVGFresh)
+
+priceInFreshBullFVG = false
+priceInFreshBearFVG = false
+if array.size(bullFVGBoxes) > 0
+    for i = 0 to array.size(bullFVGBoxes) - 1
+        top = array.get(bullFVGTop, i)
+        bot = array.get(bullFVGBot, i)
+        fresh = array.get(bullFVGFresh, i)
+        if fresh and close < bot
+            array.set(bullFVGFresh, i, false)
+            box.set_bgcolor(array.get(bullFVGBoxes, i), color.new(color.gray, 92))
+        else if fresh and low <= top and low >= bot
+            priceInFreshBullFVG := true
+        if showFVG
+            box.set_right(array.get(bullFVGBoxes, i), bar_index + 5)
+
+if array.size(bearFVGBoxes) > 0
+    for i = 0 to array.size(bearFVGBoxes) - 1
+        top = array.get(bearFVGTop, i)
+        bot = array.get(bearFVGBot, i)
+        fresh = array.get(bearFVGFresh, i)
+        if fresh and close > top
+            array.set(bearFVGFresh, i, false)
+            box.set_bgcolor(array.get(bearFVGBoxes, i), color.new(color.gray, 92))
+        else if fresh and high >= bot and high <= top
+            priceInFreshBearFVG := true
+        if showFVG
+            box.set_right(array.get(bearFVGBoxes, i), bar_index + 5)
+
+fvgBullScore = priceInFreshBullFVG ? 100.0 : (array.size(bullFVGBoxes) > 0 and array.get(bullFVGFresh, 0) ? 50.0 : 15.0)
+fvgBearScore = priceInFreshBearFVG ? 100.0 : (array.size(bearFVGBoxes) > 0 and array.get(bearFVGFresh, 0) ? 50.0 : 15.0)
+
+// #############################################################################################
+// MODULE 6 — VOLUME ENGINE
+// #############################################################################################
+volSma = ta.sma(volume, volSmaLen)
+relVolume = volSma > 0 ? volume / volSma : 1.0
+volumeSpike  = relVolume > volSpikeMult
+volumeClimax = relVolume > volClimaxMult
+volumeLow    = relVolume < volLowFloor
+
+volumeScore = math.min(100.0, (relVolume / volSpikeMult) * 100.0)
+volumeScore := volumeLow ? volumeScore * 0.4 : volumeScore   // penalise, don't hard-block (adaptive)
+
+// #############################################################################################
+// MODULE 7 — VOLATILITY ENGINE (ATR REGIME FILTER)
+// #############################################################################################
+atrPerc = (atrVal / close) * 100.0
+lowATR = atrPerc < atrLowPerc
+extremeATR = atrPerc > atrHighPerc
+healthyATR = not lowATR and not extremeATR
+
+volatilityScore = healthyATR ? 100.0 : (lowATR ? 25.0 : 35.0)  // dead or abnormal regimes both penalised
+
+// #############################################################################################
+// MODULE 8 — MOMENTUM ENGINE
+// #############################################################################################
+bodySize = math.abs(close - open)
+rangeSize = high - low
+bodyRatio = rangeSize > 0 ? bodySize / rangeSize : 0.0
+strongBody = bodyRatio > strongBodyRatio
+bullCandle = close > open
+bearCandle = close < open
+
+upperWick = high - math.max(close, open)
+lowerWick = math.min(close, open) - low
+bullRejection = lowerWick > bodySize * 1.5 and rangeSize > 0   // long lower wick = buyers defended
+bearRejection = upperWick > bodySize * 1.5 and rangeSize > 0   // long upper wick = sellers defended
+
+momentumBullScore = (bullCandle and strongBody ? 60.0 : 0.0) + (bullRejection ? 40.0 : 0.0)
+momentumBearScore = (bearCandle and strongBody ? 60.0 : 0.0) + (bearRejection ? 40.0 : 0.0)
+momentumBullScore := math.min(momentumBullScore, 100.0)
+momentumBearScore := math.min(momentumBearScore, 100.0)
+
+// #############################################################################################
+// MODULE 9 — INSTITUTIONAL DECISION ENGINE (ADAPTIVE WEIGHTED CONFLUENCE)
+// #############################################################################################
+wSum = wTrend + wStruct + wLiq + wOB + wFVG + wMom + wVolu + wATRw
+wSum := wSum == 0 ? 100.0 : wSum   // guard against a mis-configured 0-weight setup
+
+bullScore = (trendBullScore * wTrend + structBullScore * wStruct + liquidityBullScore * wLiq +
+             obBullScore * wOB + fvgBullScore * wFVG + momentumBullScore * wMom +
+             volumeScore * wVolu + volatilityScore * wATRw) / wSum
+
+bearScore = (trendBearScore * wTrend + structBearScore * wStruct + liquidityBearScore * wLiq +
+             obBearScore * wOB + fvgBearScore * wFVG + momentumBearScore * wMom +
+             volumeScore * wVolu + volatilityScore * wATRw) / wSum
+
+// Core confluence floor — the three institutionally-critical modules must not be faked by
+// secondary factors, even under adaptive compensation.
+coreBullAvg = (trendBullScore + structBullScore + liquidityBullScore) / 3.0
+coreBearAvg = (trendBearScore + structBearScore + liquidityBearScore) / 3.0
+
+finalIsBull = bullScore > bearScore
+finalScore  = finalIsBull ? bullScore : bearScore
+coreAvg     = finalIsBull ? coreBullAvg : coreBearAvg
+
+grade = finalScore >= institutionalGradeMin ? "INSTITUTIONAL" : finalScore >= signalScoreMin ? "HIGH PROBABILITY" : finalScore >= 65 ? "WATCHLIST" : "NO SIGNAL"
+
+var int lastSignalBar = -999
+canFire = (bar_index - lastSignalBar) >= signalCooldown
+
+rawBuySignal  = finalIsBull  and finalScore >= signalScoreMin and coreAvg >= coreFloorMin and canFire and barstate.isconfirmed
+rawSellSignal = not finalIsBull and finalScore >= signalScoreMin and coreAvg >= coreFloorMin and canFire and barstate.isconfirmed
+
+// #############################################################################################
+// MODULE 10 — RISK MANAGEMENT ENGINE
+// #############################################################################################
+var float activeEntry = na
+var float activeSL = na
+var float activeTP1 = na
+var float activeTP2 = na
+var float activeTP3 = na
+var float activeBE = na
+var int   activeDir = 0     // 1 long, -1 short, 0 flat
+var bool  tp1Hit = false
+var bool  beTriggered = false
+var bool  trailActive = false
+var float trailStop = na
+var int   entryBar = na
+
+buySignal = false
+sellSignal = false
+
+if rawBuySignal
+    entry = close
+    slATR = entry - atrVal * atrSLMult
+    slStruct = na(protectedLow) ? slATR : protectedLow - atrVal * structBufferATR
+    sl = math.min(slATR, slStruct)          // further of the two = safer invalidation point
+    r = entry - sl
+    if r > 0
+        activeEntry := entry
+        activeSL := sl
+        activeTP1 := entry + r * tp1R
+        activeTP2 := entry + r * tp2R
+        activeTP3 := entry + r * tp3R
+        activeBE  := entry + r * 1.0
+        activeDir := 1
+        tp1Hit := false
+        beTriggered := false
+        trailActive := false
+        entryBar := bar_index
+        lastSignalBar := bar_index
+        buySignal := true
+
+if rawSellSignal
+    entry = close
+    slATR = entry + atrVal * atrSLMult
+    slStruct = na(protectedHigh) ? slATR : protectedHigh + atrVal * structBufferATR
+    sl = math.max(slATR, slStruct)
+    r = sl - entry
+    if r > 0
+        activeEntry := entry
+        activeSL := sl
+        activeTP1 := entry - r * tp1R
+        activeTP2 := entry - r * tp2R
+        activeTP3 := entry - r * tp3R
+        activeBE  := entry - r * 1.0
+        activeDir := -1
+        tp1Hit := false
+        beTriggered := false
+        trailActive := false
+        entryBar := bar_index
+        lastSignalBar := bar_index
+        sellSignal := true
+
+// --- live trade management (TP / SL / breakeven / trailing) for the currently active setup ---
+tp1HitNow = false
+tp2HitNow = false
+tp3HitNow = false
+slHitNow  = false
+beHitNow  = false
+trailHitNow = false
+
+if activeDir == 1
+    if not tp1Hit and high >= activeTP1
+        tp1Hit := true
+        tp1HitNow := true
+        trailActive := true
+        trailStop := activeEntry
+    if not beTriggered and high >= activeBE
+        beTriggered := true
+        beHitNow := true
+    if high >= activeTP2
+        tp2HitNow := true
+    if high >= activeTP3
+        tp3HitNow := true
+        activeDir := 0   // fully closed
+    if trailActive
+        newTrail = close - atrVal * trailAtrMult
+        trailStop := math.max(nz(trailStop, newTrail), newTrail)
+        if low <= trailStop
+            trailHitNow := true
+            activeDir := 0
+    if low <= activeSL and not tp1Hit
+        slHitNow := true
+        activeDir := 0
+
+if activeDir == -1
+    if not tp1Hit and low <= activeTP1
+        tp1Hit := true
+        tp1HitNow := true
+        trailActive := true
+        trailStop := activeEntry
+    if not beTriggered and low <= activeBE
+        beTriggered := true
+        beHitNow := true
+    if low <= activeTP2
+        tp2HitNow := true
+    if low <= activeTP3
+        tp3HitNow := true
+        activeDir := 0
+    if trailActive
+        newTrail = close + atrVal * trailAtrMult
+        trailStop := math.min(nz(trailStop, newTrail), newTrail)
+        if high >= trailStop
+            trailHitNow := true
+            activeDir := 0
+    if high >= activeSL and not tp1Hit
+        slHitNow := true
+        activeDir := 0
+
+rr = activeDir != 0 and not na(activeSL) and activeEntry != activeSL ? math.abs(activeTP1 - activeEntry) / math.abs(activeEntry - activeSL) : na
+riskPerc   = activeDir != 0 ? math.abs(activeEntry - activeSL) / activeEntry * 100.0 : na
+rewardPerc = activeDir != 0 ? math.abs(activeTP2  - activeEntry) / activeEntry * 100.0 : na
+// Rough holding-time estimate: bars needed to cover the TP1 distance at the current ATR pace
+estBarsToTP1 = activeDir != 0 and atrVal > 0 ? int(math.round(math.abs(activeTP1 - activeEntry) / atrVal)) : int(na)
+estMinutesToTP1 = na(estBarsToTP1) ? int(na) : estBarsToTP1 * 15   // chart is 15M; adjust if run on another TF
+
+// #############################################################################################
+// PLOTTING — SIGNALS, LEVELS, ZONES
+// #############################################################################################
+plotshape(buySignal, title="BUY", style=shape.triangleup, location=location.belowbar,
+     color=finalScore >= institutionalGradeMin ? colBull : color.new(colBull, 35), size=size.small, text="BUY")
+plotshape(sellSignal, title="SELL", style=shape.triangledown, location=location.abovebar,
+     color=finalScore >= institutionalGradeMin ? colBear : color.new(colBear, 35), size=size.small, text="SELL")
+
+plot(activeDir == 1 ? activeSL : activeDir == -1 ? activeSL : na, title="Stop Loss", color=color.new(color.red, 0), style=plot.style_circles, linewidth=2)
+plot(activeDir != 0 ? activeTP1 : na, title="TP1", color=color.new(color.teal, 0), style=plot.style_circles, linewidth=1)
+plot(activeDir != 0 ? activeTP2 : na, title="TP2", color=color.new(color.green, 0), style=plot.style_circles, linewidth=1)
+plot(activeDir != 0 ? activeTP3 : na, title="TP3", color=color.new(color.lime, 0), style=plot.style_circles, linewidth=1)
+plot(trailActive ? trailStop : na, title="Trailing Stop", color=color.new(color.orange, 0), style=plot.style_circles, linewidth=1)
+
+// #############################################################################################
+// MODULE 11 — SIGNAL DASHBOARD
+// #############################################################################################
+f_biasTxt(b, r) => b ? "BULL" : r ? "BEAR" : "FLAT"
+f_biasCol(b, r) => b ? colBull : r ? colBear : color.gray
+
+if showDash and barstate.islast
+    var table dash = table.new(position.top_right, 2, 16, border_width=1, border_color=color.new(color.gray, 60), bgcolor=color.new(color.black, 15))
+    table.cell(dash, 0, 0, "INSTITUTIONAL SMC ENGINE", text_color=color.white, bgcolor=color.new(color.blue, 40), text_size=size.small)
+    table.cell(dash, 1, 0, "15M EXECUTION", text_color=color.white, bgcolor=color.new(color.blue, 40), text_size=size.small)
+
+    table.cell(dash, 0, 1, "Daily Bias", text_color=color.gray, text_size=size.small)
+    table.cell(dash, 1, 1, f_biasTxt(dBull, dBear), text_color=f_biasCol(dBull, dBear), text_size=size.small)
+    table.cell(dash, 0, 2, "4H Bias", text_color=color.gray, text_size=size.small)
+    table.cell(dash, 1, 2, f_biasTxt(h4Bull, h4Bear), text_color=f_biasCol(h4Bull, h4Bear), text_size=size.small)
+    table.cell(dash, 0, 3, "1H Bias", text_color=color.gray, text_size=size.small)
+    table.cell(dash, 1, 3, f_biasTxt(h1Bull, h1Bear), text_color=f_biasCol(h1Bull, h1Bear), text_size=size.small)
+    table.cell(dash, 0, 4, "15M Structure", text_color=color.gray, text_size=size.small)
+    table.cell(dash, 1, 4, extTrend == 1 ? "BULL" : extTrend == -1 ? "BEAR" : "FLAT", text_color=extTrend == 1 ? colBull : extTrend == -1 ? colBear : color.gray, text_size=size.small)
+
+    table.cell(dash, 0, 5, "Liquidity", text_color=color.gray, text_size=size.small)
+    table.cell(dash, 1, 5, sweepBullRecent ? "BULL SWEEP" : sweepBearRecent ? "BEAR SWEEP" : "NONE", text_color=color.white, text_size=size.small)
+    table.cell(dash, 0, 6, "Order Block", text_color=color.gray, text_size=size.small)
+    table.cell(dash, 1, 6, priceInFreshBullOB ? "IN BULL OB" : priceInFreshBearOB ? "IN BEAR OB" : "—", text_color=color.white, text_size=size.small)
+    table.cell(dash, 0, 7, "FVG", text_color=color.gray, text_size=size.small)
+    table.cell(dash, 1, 7, priceInFreshBullFVG ? "IN BULL FVG" : priceInFreshBearFVG ? "IN BEAR FVG" : "—", text_color=color.white, text_size=size.small)
+    table.cell(dash, 0, 8, "Volume", text_color=color.gray, text_size=size.small)
+    table.cell(dash, 1, 8, str.tostring(relVolume, "#.##") + "x avg" + (volumeClimax ? " CLIMAX" : volumeLow ? " LOW" : ""), text_color=color.white, text_size=size.small)
+    table.cell(dash, 0, 9, "ATR Regime", text_color=color.gray, text_size=size.small)
+    table.cell(dash, 1, 9, healthyATR ? "HEALTHY" : lowATR ? "LOW/SIDEWAYS" : "EXTREME", text_color=healthyATR ? colBull : color.orange, text_size=size.small)
+
+    table.cell(dash, 0, 10, "Score (Bull / Bear)", text_color=color.gray, text_size=size.small)
+    table.cell(dash, 1, 10, str.tostring(bullScore, "#.#") + " / " + str.tostring(bearScore, "#.#"), text_color=color.white, text_size=size.small)
+    table.cell(dash, 0, 11, "Grade", text_color=color.gray, text_size=size.small)
+    table.cell(dash, 1, 11, grade, text_color=grade == "INSTITUTIONAL" ? color.lime : grade == "HIGH PROBABILITY" ? color.yellow : color.gray, text_size=size.small)
+
+    table.cell(dash, 0, 12, "Active Trade", text_color=color.gray, text_size=size.small)
+    table.cell(dash, 1, 12, activeDir == 1 ? "LONG" : activeDir == -1 ? "SHORT" : "FLAT", text_color=activeDir == 1 ? colBull : activeDir == -1 ? colBear : color.gray, text_size=size.small)
+    table.cell(dash, 0, 13, "Entry / SL", text_color=color.gray, text_size=size.small)
+    table.cell(dash, 1, 13, activeDir != 0 ? str.tostring(activeEntry) + " / " + str.tostring(activeSL) : "—", text_color=color.white, text_size=size.small)
+    table.cell(dash, 0, 14, "RR (TP1) / Est. Time", text_color=color.gray, text_size=size.small)
+    table.cell(dash, 1, 14, activeDir != 0 and not na(rr) ? str.tostring(rr, "#.##") + "R / ~" + str.tostring(estMinutesToTP1) + "m" : "—", text_color=color.white, text_size=size.small)
+    table.cell(dash, 0, 15, "Risk % / Reward %", text_color=color.gray, text_size=size.small)
+    table.cell(dash, 1, 15, activeDir != 0 and not na(riskPerc) ? str.tostring(riskPerc, "#.##") + "% / " + str.tostring(rewardPerc, "#.##") + "%" : "—", text_color=color.white, text_size=size.small)
+
+// #############################################################################################
+// ALERTS
+// #############################################################################################
+alertcondition(buySignal, title="Institutional BUY", message="{{ticker}} INSTITUTIONAL BUY @ {{close}} | SL & TP plotted on chart | 15M SMC Engine")
+alertcondition(sellSignal, title="Institutional SELL", message="{{ticker}} INSTITUTIONAL SELL @ {{close}} | SL & TP plotted on chart | 15M SMC Engine")
+alertcondition(tp1HitNow or tp2HitNow or tp3HitNow, title="TP Hit", message="{{ticker}} Take-Profit level reached on active SMC signal")
+alertcondition(slHitNow, title="SL Hit", message="{{ticker}} Stop-Loss hit on active SMC signal")
+alertcondition(beHitNow, title="Breakeven Trigger", message="{{ticker}} Trade reached 1R — move stop to breakeven")
+alertcondition(trailHitNow, title="Trailing Stop Trigger", message="{{ticker}} Trailing stop hit — position closed")

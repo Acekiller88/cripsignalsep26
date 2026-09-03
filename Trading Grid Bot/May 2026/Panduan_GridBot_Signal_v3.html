@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panduan Lengkap — Grid Bot Signal Pro v3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@600;700;800&family=Exo+2:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#020912;--bg2:#050e1a;--bg3:#080f1e;--bg4:#0c1628;
+  --border:#0e1f35;--border2:#162a45;--border3:#1e3a5f;
+  --c1:#00e5ff;--c1d:#00b8d4;--c1dim:rgba(0,229,255,.08);
+  --c2:#39ff7e;--c2d:#00cc5a;--c2dim:rgba(57,255,126,.07);
+  --c3:#ff3d6b;--c3d:#cc1a44;--c3dim:rgba(255,61,107,.07);
+  --amber:#ffc940;--amberDim:rgba(255,201,64,.07);
+  --violet:#a78bfa;--violetDim:rgba(167,139,250,.08);
+  --orange:#ff8c42;--orangeDim:rgba(255,140,66,.07);
+  --teal:#20e3b2;--tealDim:rgba(32,227,178,.07);
+  --t1:#1e3a5f;--t2:#4a7da8;--t3:#8ab8d8;--t4:#c8e0f0;--t5:#eef5fb;
+  --mono:'IBM Plex Mono',monospace;
+  --sans:'Exo 2',sans-serif;
+  --display:'Syne',sans-serif;
+}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);color:var(--t3);font-family:var(--sans);font-size:14px;
+  line-height:1.7;
+  background-image:
+    radial-gradient(ellipse 60% 40% at 10% 0%,rgba(0,229,255,.03),transparent),
+    radial-gradient(ellipse 40% 30% at 90% 100%,rgba(57,255,126,.02),transparent);
+}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border3);border-radius:4px}
+
+/* ─── LAYOUT ─── */
+.wrap{display:flex;min-height:100vh}
+
+/* ─── SIDEBAR ─── */
+.sidebar{
+  width:260px;flex-shrink:0;
+  background:var(--bg2);border-right:1px solid var(--border2);
+  position:sticky;top:0;height:100vh;overflow-y:auto;
+  padding:24px 0;
+}
+.sb-logo{
+  padding:0 20px 20px;border-bottom:1px solid var(--border);
+  margin-bottom:16px;
+}
+.sb-logo-title{font-family:var(--display);font-size:13px;font-weight:800;color:var(--t5);letter-spacing:.1em}
+.sb-logo-sub{font-family:var(--sans);font-size:9px;color:var(--t1);letter-spacing:.18em;text-transform:uppercase;margin-top:3px}
+.sb-section{
+  padding:4px 20px;font-family:var(--sans);font-size:8px;font-weight:700;
+  color:var(--t1);letter-spacing:.2em;text-transform:uppercase;margin:12px 0 4px;
+}
+.sb-link{
+  display:flex;align-items:center;gap:8px;
+  padding:7px 20px;font-family:var(--sans);font-size:12px;color:var(--t2);
+  text-decoration:none;transition:all .15s;border-left:2px solid transparent;
+}
+.sb-link:hover{color:var(--t4);background:rgba(255,255,255,.02);border-left-color:var(--border3)}
+.sb-link.active{color:var(--c1);background:var(--c1dim);border-left-color:var(--c1)}
+.sb-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+
+/* ─── CONTENT ─── */
+.content{flex:1;max-width:860px;padding:48px 48px 100px;overflow-y:auto}
+
+@media(max-width:900px){
+  .sidebar{display:none}
+  .content{padding:24px 20px 60px}
+}
+
+/* ─── TYPOGRAPHY ─── */
+h1{
+  font-family:var(--display);font-size:32px;font-weight:800;
+  color:var(--t5);letter-spacing:-.01em;line-height:1.2;
+  margin-bottom:8px;
+}
+h2{
+  font-family:var(--display);font-size:20px;font-weight:700;
+  color:var(--t4);letter-spacing:.02em;
+  margin:48px 0 16px;padding-bottom:10px;
+  border-bottom:1px solid var(--border2);
+  display:flex;align-items:center;gap:10px;
+}
+h3{
+  font-family:var(--sans);font-size:15px;font-weight:700;
+  color:var(--t4);margin:28px 0 10px;letter-spacing:.02em;
+}
+h4{
+  font-family:var(--sans);font-size:13px;font-weight:700;
+  color:var(--t3);margin:20px 0 8px;letter-spacing:.03em;
+}
+p{color:var(--t3);margin-bottom:12px;font-size:13.5px;line-height:1.75}
+strong{color:var(--t4);font-weight:700}
+em{color:var(--amber);font-style:normal;font-weight:600}
+
+/* ─── HERO ─── */
+.hero{
+  background:linear-gradient(135deg,rgba(0,229,255,.04),rgba(57,255,126,.02));
+  border:1px solid var(--border2);border-radius:10px;
+  padding:32px 36px;margin-bottom:40px;position:relative;overflow:hidden;
+}
+.hero::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--c1),var(--c2),transparent);opacity:.3;
+}
+.hero-badge{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:4px 12px;border-radius:20px;
+  background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.2);
+  font-family:var(--sans);font-size:9px;font-weight:700;color:var(--c1);
+  letter-spacing:.15em;text-transform:uppercase;margin-bottom:16px;
+}
+.hero h1{margin-bottom:12px}
+.hero p{color:var(--t3);font-size:14px;margin:0}
+
+/* ─── CALLOUT BOXES ─── */
+.callout{
+  border-radius:6px;padding:16px 20px;margin:20px 0;
+  border-left:3px solid;font-size:13px;line-height:1.7;
+}
+.callout.info{background:var(--c1dim);border-color:var(--c1);color:var(--t4)}
+.callout.warn{background:var(--amberDim);border-color:var(--amber);color:var(--t4)}
+.callout.danger{background:var(--c3dim);border-color:var(--c3);color:var(--t4)}
+.callout.success{background:var(--c2dim);border-color:var(--c2);color:var(--t4)}
+.callout.tip{background:var(--violetDim);border-color:var(--violet);color:var(--t4)}
+.callout-title{font-family:var(--sans);font-size:10px;font-weight:800;letter-spacing:.15em;text-transform:uppercase;margin-bottom:6px;display:block}
+
+/* ─── TABLES ─── */
+.tbl-wrap{overflow-x:auto;margin:16px 0;border-radius:6px;border:1px solid var(--border2)}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+thead th{
+  padding:10px 14px;text-align:left;font-family:var(--sans);font-size:9px;
+  font-weight:700;color:var(--t1);letter-spacing:.15em;text-transform:uppercase;
+  background:var(--bg3);border-bottom:1px solid var(--border2);
+}
+tbody td{padding:9px 14px;border-bottom:1px solid rgba(14,31,53,.5);color:var(--t3);font-size:12.5px}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:rgba(255,255,255,.01)}
+.td-good{color:var(--c2);font-weight:700}
+.td-warn{color:var(--amber);font-weight:700}
+.td-danger{color:var(--c3);font-weight:700}
+.td-cyan{color:var(--c1);font-weight:700}
+.td-violet{color:var(--violet);font-weight:700}
+.td-orange{color:var(--orange);font-weight:700}
+
+/* ─── REGIME CARDS ─── */
+.regime-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;margin:16px 0}
+.regime-card{
+  padding:16px;border-radius:6px;border:1px solid;
+  font-family:var(--sans);
+}
+.regime-card h4{margin:0 0 6px;font-size:13px;display:flex;align-items:center;gap:7px}
+.regime-card p{font-size:11.5px;margin:0 0 10px;color:var(--t3);line-height:1.6}
+.regime-card .rc-mode{
+  font-size:10px;font-weight:700;padding:3px 9px;border-radius:3px;
+  display:inline-flex;align-items:center;gap:4px;letter-spacing:.06em;
+}
+.rc-expansion{background:rgba(0,229,255,.08);border-color:rgba(0,229,255,.2);color:var(--bg)}
+.rc-expansion{background:rgba(0,229,255,.06);border-color:rgba(0,229,255,.2)}
+.rc-expansion h4{color:var(--c1)}
+.rc-mature{background:rgba(57,255,126,.05);border-color:rgba(57,255,126,.18)}
+.rc-mature h4{color:var(--c2)}
+.rc-rotation{background:rgba(255,201,64,.05);border-color:rgba(255,201,64,.18)}
+.rc-rotation h4{color:var(--amber)}
+.rc-squeeze{background:rgba(167,139,250,.05);border-color:rgba(167,139,250,.18)}
+.rc-squeeze h4{color:var(--violet)}
+.rc-chaos{background:rgba(255,61,107,.05);border-color:rgba(255,61,107,.18)}
+.rc-chaos h4{color:var(--c3)}
+.rc-reversal{background:rgba(255,140,66,.05);border-color:rgba(255,140,66,.18)}
+.rc-reversal h4{color:var(--orange)}
+
+/* ─── FLOW CHART ─── */
+.flow{display:flex;flex-direction:column;gap:0;margin:20px 0}
+.flow-step{
+  display:flex;align-items:flex-start;gap:16px;
+  padding:14px 0;border-bottom:1px dashed var(--border2);
+}
+.flow-step:last-child{border-bottom:none}
+.flow-num{
+  width:32px;height:32px;border-radius:50%;flex-shrink:0;
+  background:linear-gradient(135deg,rgba(0,180,210,.2),rgba(0,229,255,.1));
+  border:1px solid rgba(0,229,255,.25);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--display);font-size:12px;font-weight:800;color:var(--c1);
+}
+.flow-body{}
+.flow-title{font-family:var(--sans);font-size:13px;font-weight:700;color:var(--t4);margin-bottom:4px}
+.flow-desc{font-family:var(--sans);font-size:12px;color:var(--t2);line-height:1.65}
+
+/* ─── INDICATOR CHIPS ─── */
+.chip{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:2px 8px;border-radius:3px;font-family:var(--sans);
+  font-size:11px;font-weight:700;letter-spacing:.05em;
+  vertical-align:middle;margin:1px;
+}
+.chip.g{background:var(--c2dim);color:var(--c2);border:1px solid rgba(57,255,126,.25)}
+.chip.r{background:var(--c3dim);color:var(--c3);border:1px solid rgba(255,61,107,.25)}
+.chip.b{background:var(--c1dim);color:var(--c1);border:1px solid rgba(0,229,255,.25)}
+.chip.a{background:var(--amberDim);color:var(--amber);border:1px solid rgba(255,201,64,.25)}
+.chip.v{background:var(--violetDim);color:var(--violet);border:1px solid rgba(167,139,250,.25)}
+.chip.o{background:var(--orangeDim);color:var(--orange);border:1px solid rgba(255,140,66,.25)}
+.chip.t{background:var(--tealDim);color:var(--teal);border:1px solid rgba(32,227,178,.25)}
+
+/* ─── CODE BLOCK ─── */
+.code{
+  background:var(--bg3);border:1px solid var(--border2);border-radius:6px;
+  padding:16px 20px;font-family:var(--mono);font-size:12px;color:var(--t3);
+  margin:14px 0;line-height:1.8;overflow-x:auto;
+}
+.code .kw{color:var(--c1)}
+.code .val{color:var(--c2)}
+.code .cmt{color:var(--t1);font-style:italic}
+.code .warn{color:var(--amber)}
+
+/* ─── SCORE TABLE ─── */
+.score-breakdown{
+  display:flex;flex-direction:column;gap:6px;margin:16px 0;
+}
+.sb-row{display:flex;align-items:center;gap:10px}
+.sb-name{font-family:var(--sans);font-size:12px;color:var(--t3);width:160px;flex-shrink:0}
+.sb-track{flex:1;height:8px;background:var(--bg4);border-radius:4px;overflow:hidden;border:1px solid var(--border)}
+.sb-fill{height:100%;border-radius:4px}
+.sb-pts{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--t2);width:40px;text-align:right;flex-shrink:0}
+
+/* ─── CHECKLIST ─── */
+.checklist{list-style:none;display:flex;flex-direction:column;gap:8px;margin:12px 0}
+.checklist li{
+  display:flex;align-items:flex-start;gap:10px;
+  font-family:var(--sans);font-size:13px;color:var(--t3);
+  padding:8px 12px;border-radius:4px;background:rgba(255,255,255,.01);
+  border:1px solid var(--border);line-height:1.6;
+}
+.checklist li .ck-icon{flex-shrink:0;margin-top:1px;font-size:12px}
+
+/* ─── SECTION DIVIDER ─── */
+.divider{
+  height:1px;background:linear-gradient(90deg,var(--border2),transparent);
+  margin:40px 0;
+}
+
+/* ─── BACK TO TOP ─── */
+.back-top{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:6px 14px;border-radius:4px;
+  background:var(--bg3);border:1px solid var(--border2);
+  font-family:var(--sans);font-size:11px;color:var(--t2);
+  text-decoration:none;transition:all .2s;margin-top:20px;
+}
+.back-top:hover{color:var(--c1);border-color:rgba(0,229,255,.2)}
+
+/* ─── PRINT ─── */
+@media print{
+  .sidebar{display:none}
+  body{background:#fff;color:#000}
+  .hero{background:#f5f5f5;border:1px solid #ddd}
+  .content{padding:20px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="sb-logo">
+    <div class="sb-logo-title">GRID BOT SIGNAL PRO</div>
+    <div class="sb-logo-sub">Panduan Pengguna · v3.0</div>
+  </div>
+
+  <div class="sb-section">Permulaan</div>
+  <a class="sb-link" href="#intro"><span class="sb-dot" style="background:var(--c1)"></span>Pengenalan</a>
+  <a class="sb-link" href="#interface"><span class="sb-dot" style="background:var(--t2)"></span>Antara Muka</a>
+
+  <div class="sb-section">Konsep Utama</div>
+  <a class="sb-link" href="#regime"><span class="sb-dot" style="background:var(--amber)"></span>6 Market Regime</a>
+  <a class="sb-link" href="#probability"><span class="sb-dot" style="background:var(--c2)"></span>Probability Engine</a>
+  <a class="sb-link" href="#score"><span class="sb-dot" style="background:var(--violet)"></span>Weighted Score</a>
+  <a class="sb-link" href="#indicators"><span class="sb-dot" style="background:var(--teal)"></span>Indicator Chips</a>
+
+  <div class="sb-section">Cara Guna</div>
+  <a class="sb-link" href="#settings"><span class="sb-dot" style="background:var(--t2)"></span>Setting Dashboard</a>
+  <a class="sb-link" href="#modes"><span class="sb-dot" style="background:var(--orange)"></span>Grid / Directional / Swing</a>
+  <a class="sb-link" href="#flow"><span class="sb-dot" style="background:var(--c1)"></span>Aliran Keputusan</a>
+  <a class="sb-link" href="#levels"><span class="sb-dot" style="background:var(--c2)"></span>Entry / SL / TP</a>
+  <a class="sb-link" href="#htf"><span class="sb-dot" style="background:var(--amber)"></span>HTF Logic</a>
+
+  <div class="sb-section">Panduan Praktikal</div>
+  <a class="sb-link" href="#scenarios"><span class="sb-dot" style="background:var(--c2)"></span>Senario Sebenar</a>
+  <a class="sb-link" href="#mistakes"><span class="sb-dot" style="background:var(--c3)"></span>Kesilapan Biasa</a>
+  <a class="sb-link" href="#checklist"><span class="sb-dot" style="background:var(--teal)"></span>Checklist Harian</a>
+  <a class="sb-link" href="#faq"><span class="sb-dot" style="background:var(--violet)"></span>Soalan Lazim</a>
+</nav>
+
+<!-- CONTENT -->
+<main class="content">
+
+<!-- HERO -->
+<section id="intro">
+<div class="hero">
+  <div class="hero-badge">📘 Panduan Lengkap</div>
+  <h1>Grid Bot Signal Pro v3</h1>
+  <p>Panduan rasmi untuk memahami dan menggunakan dashboard institutional-grade ini — dari membaca signal hingga membuat keputusan trade yang betul.</p>
+</div>
+
+<p>Dashboard ini bukan sekadar indicator biasa. Ia menggunakan <strong>Probability Engine</strong>, <strong>Weighted Scoring System</strong>, dan <strong>Advanced Regime Detection</strong> yang direka untuk meniru cara institutional trader menilai pasaran — bukan sekadar "MACD cross" atau "RSI lebih 70".</p>
+
+<div class="callout info">
+  <span class="callout-title">ℹ️ Penting Sebelum Mula</span>
+  Dashboard ini adalah alat bantu analisis — bukan sistem auto-trade. Semua keputusan akhir adalah tanggungjawab pengguna. Signal yang keluar adalah cadangan berdasarkan data teknikal, bukan jaminan profit.
+</div>
+</section>
+
+<!-- ANTARA MUKA -->
+<section id="interface">
+<h2>🖥️ Antara Muka Dashboard</h2>
+
+<h3>Header Bar (Atas)</h3>
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>Elemen</th><th>Fungsi</th></tr></thead>
+<tbody>
+  <tr><td><strong>G3 Logo</strong></td><td>Identiti v3 engine — institutional grade</td></tr>
+  <tr><td><span class="chip b">V3 ENGINE</span> <span class="chip v">INSTITUTIONAL</span></td><td>Penanda versi engine yang sedang berjalan</td></tr>
+  <tr><td><strong>Regime Badge</strong> (kanan)</td><td>Regime market yang paling dominan dari keseluruhan 50 pasangan yang discan</td></tr>
+  <tr><td><span class="chip g">Scan Complete</span></td><td>Status scan terkini. Bertukar kepada amber semasa scanning berlaku</td></tr>
+  <tr><td><strong>Butang SCAN</strong></td><td>Mulakan scan manual. Auto-scan akan scan semula setiap 90 saat jika diaktifkan</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>Legend Bar</h3>
+<p>Bar warna di bawah header menunjukkan 6 jenis regime beserta warnanya. Ini rujukan pantas supaya kau boleh identify regime dengan cepat bila tengok signal card.</p>
+
+<h3>Controls Bar</h3>
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>Kawalan</th><th>Pilihan</th><th>Penerangan</th></tr></thead>
+<tbody>
+  <tr><td><strong>Timeframe</strong></td><td>15M / 1H / 4H</td><td>Timeframe LTF yang dianalisis. HTF auto-set kepada 4H (untuk 15M/1H) atau 1D (untuk 4H)</td></tr>
+  <tr><td><strong>Min Prob %</strong></td><td>50% – 75%</td><td>Threshold minimum probabiliti untuk signal dipaparkan. Lebih tinggi = lebih ketat</td></tr>
+  <tr><td><strong>Mode</strong></td><td>Grid / Directional / Swing</td><td>Konteks penggunaan. Mempengaruhi cara baca signal — <em>tidak</em> tukar logic engine</td></tr>
+  <tr><td><strong>Auto (90s)</strong></td><td>ON / OFF</td><td>Auto-scan semula setiap 90 saat. Aktifkan untuk monitoring berterusan</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>Stats Row (Kanan Controls)</h3>
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>Chip</th><th>Maksud</th></tr></thead>
+<tbody>
+  <tr><td><span class="chip g">↑ 6 LONG</span></td><td>Bilangan signal LONG yang memenuhi threshold</td></tr>
+  <tr><td><span class="chip r">↓ 0 SHORT</span></td><td>Bilangan signal SHORT yang memenuhi threshold</td></tr>
+  <tr><td><strong>50 Scanned</strong></td><td>Bilangan pasangan yang telah dianalisis</td></tr>
+  <tr><td><span class="chip b">Avg 83%</span></td><td>Purata probabiliti semua signal aktif. Benchmark: >70% = market quality tinggi</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<div class="divider"></div>
+
+<!-- 6 REGIMES -->
+<section id="regime">
+<h2>🌐 6 Market Regime</h2>
+
+<p>Ini adalah <strong>komponen terpenting</strong> dalam v3. Sebelum buat apa-apa keputusan trade, tengok dulu regime apa yang sedang aktif. Regime menentukan strategi, mode, dan paras keyakinan yang perlu digunakan.</p>
+
+<div class="regime-grid">
+
+  <div class="regime-card rc-expansion">
+    <h4>↗ TREND EXPANSION</h4>
+    <p>ADX tinggi (>32), ATR berkembang, EMA slope curam. Momentum kuat, breakout baru bermula. Fasa paling profitable untuk directional trade.</p>
+    <span class="rc-mode" style="background:rgba(0,229,255,.1);color:var(--c1);border:1px solid rgba(0,229,255,.2)">↗ Directional Grid</span>
+  </div>
+
+  <div class="regime-card rc-mature">
+    <h4>→ TREND MATURE</h4>
+    <p>ADX >25, trend masih wujud tapi momentum mula perlahan. Harga sudah bergerak jauh. Masuk lebih berhati-hati, SL lebih ketat.</p>
+    <span class="rc-mode" style="background:rgba(57,255,126,.08);color:var(--c2);border:1px solid rgba(57,255,126,.2)">↗ Directional Grid</span>
+  </div>
+
+  <div class="regime-card rc-rotation">
+    <h4>↔ RANGE ROTATION</h4>
+    <p>ADX rendah (<22), market bergerak dalam range. Beli bawah, jual atas. Ideal untuk grid bot neutral. Fasa paling selamat untuk grid.</p>
+    <span class="rc-mode" style="background:rgba(255,201,64,.08);color:var(--amber);border:1px solid rgba(255,201,64,.2)">◈ Grid Bot</span>
+  </div>
+
+  <div class="regime-card rc-squeeze">
+    <h4>◈ SQUEEZE</h4>
+    <p>ADX <18, BB sangat sempit. Tenaga sedang dikumpul. Breakout akan berlaku — tapi arah belum pasti. Tunggu sebelum masuk grid.</p>
+    <span class="rc-mode" style="background:rgba(167,139,250,.08);color:var(--violet);border:1px solid rgba(167,139,250,.2)">⏳ Tunggu Breakout</span>
+  </div>
+
+  <div class="regime-card rc-chaos">
+    <h4>⚡ VOLATILE CHAOS</h4>
+    <p>BB sangat lebar (>16%). Market tidak menentu, spike besar tanpa arah jelas. Probability engine akan penalti berat. Jangan guna grid.</p>
+    <span class="rc-mode" style="background:rgba(255,61,107,.08);color:var(--c3);border:1px solid rgba(255,61,107,.2)">⛔ Elak / Swing Kecil</span>
+  </div>
+
+  <div class="regime-card rc-reversal">
+    <h4>↺ REVERSAL TRANSITION</h4>
+    <p>Market antara trend dan range. Sering muncul selepas trend matang habis. Peluang reversal atau trend baru. Signal probability lebih rendah — pilih Swing.</p>
+    <span class="rc-mode" style="background:rgba(255,140,66,.08);color:var(--orange);border:1px solid rgba(255,140,66,.2)">~ Swing</span>
+  </div>
+
+</div>
+
+<div class="callout warn">
+  <span class="callout-title">⚠️ Regime Boleh Berubah Setiap Scan</span>
+  Regime dikira semula setiap scan (90s jika auto ON). Sebuah pair boleh berubah dari SQUEEZE ke TREND_EXPANSION dalam masa beberapa lilin. Sentiasa tengok regime semasa sebelum masuk trade.
+</div>
+</section>
+
+<div class="divider"></div>
+
+<!-- PROBABILITY ENGINE -->
+<section id="probability">
+<h2>📊 Probability Engine</h2>
+
+<p>Berbeza dari v2 yang hanya ada "skor 8/8", v3 mengira <strong>kebarangkalian sebenar</strong> signal berjaya berdasarkan formula berbilang faktor.</p>
+
+<h3>Formula Probability</h3>
+<div class="code">
+<span class="cmt">// Base probability</span>
+prob = <span class="val">45</span>
+
+<span class="cmt">// Tambah berdasarkan weighted score</span>
+prob += score × <span class="val">0.35</span>
+
+<span class="cmt">// Bonus / penalti berdasarkan konteks</span>
+<span class="kw">if</span> (htfAligned)          prob += <span class="val">10</span>
+<span class="kw">if</span> (htfConflict)         prob -= <span class="val">8</span>
+<span class="kw">if</span> (regime = EXPANSION)  prob += <span class="val">8</span>
+<span class="kw">if</span> (regime = CHAOS)      prob -= <span class="val">12</span>
+<span class="kw">if</span> (momentumStrong)      prob += <span class="val">7</span>
+<span class="kw">if</span> (volumeExpansion)     prob += <span class="val">5</span>
+<span class="kw">if</span> (liquiditySweep)      prob += <span class="val">5</span>
+<span class="kw">if</span> (bosFresh)            prob += <span class="val">4</span>
+<span class="kw">if</span> (breakoutEff > 70%)   prob += <span class="val">3</span>
+
+<span class="cmt">// Had: 5% – 95%</span>
+prob = max(<span class="val">5</span>, min(<span class="val">95</span>, prob))
+</div>
+
+<h3>Cara Baca Probability %</h3>
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>Range</th><th>Tafsiran</th><th>Tindakan</th></tr></thead>
+<tbody>
+  <tr><td class="td-danger">&lt; 55%</td><td>Signal lemah — banyak faktor tidak confirm</td><td>Skip atau tunggu</td></tr>
+  <tr><td class="td-warn">55% – 64%</td><td>Signal sederhana — ada potensi tapi risiko tinggi</td><td>Saiz kecil / SL ketat</td></tr>
+  <tr><td class="td-cyan">65% – 74%</td><td>Signal baik — majoriti faktor aligned</td><td>Boleh masuk normal size</td></tr>
+  <tr><td class="td-good">75% – 84%</td><td>Signal kuat — hampir semua faktor confirm</td><td>Normal ke besar size</td></tr>
+  <tr><td class="td-good">≥ 85%</td><td>Signal sangat kuat — rare, semua faktor align</td><td>Full size dengan keyakinan tinggi</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="callout tip">
+  <span class="callout-title">💡 Tip Professional</span>
+  Jangan kejar probability tinggi sahaja. Signal 78% dalam regime RANGE_ROTATION lebih reliable dari signal 85% dalam VOLATILE_CHAOS. Probability + Regime = keputusan sebenar.
+</div>
+
+<h3>Probability Components (Dalam Card)</h3>
+<p>Di bawah bar probability, ada 6 dot indicator:</p>
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>Dot</th><th>Maksud</th><th>Wajaran</th></tr></thead>
+<tbody>
+  <tr><td><span class="chip b">HTF</span></td><td>Higher Timeframe aligned dengan signal</td><td>+10% prob</td></tr>
+  <tr><td><span class="chip a">MOM</span></td><td>Momentum sedang accelerate (bukan sekadar wujud)</td><td>+7% prob</td></tr>
+  <tr><td><span class="chip v">BOS</span></td><td>Break of Structure fresh (dalam 4 lilin terakhir)</td><td>+4% prob</td></tr>
+  <tr><td><span class="chip t">SWEEP</span></td><td>Liquidity sweep berlaku (stop hunt reclaim)</td><td>+5% prob</td></tr>
+  <tr><td><span class="chip g">VOL</span></td><td>Volume surge (>1.4× purata 20 lilin)</td><td>+5% prob</td></tr>
+  <tr><td><span class="chip b">REG</span></td><td>Regime sesuai untuk arah signal</td><td>Kuali konteks</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<div class="divider"></div>
+
+<!-- WEIGHTED SCORE -->
+<section id="score">
+<h2>⚖️ Weighted Scoring System (100pt)</h2>
+
+<p>Berbeza dari v2 (semua kriteria = 1 point), v3 menggunakan sistem wajaran — komponen lebih penting dapat markah lebih tinggi.</p>
+
+<div class="score-breakdown">
+  <div class="sb-row">
+    <span class="sb-name">HTF Alignment</span>
+    <div class="sb-track"><div class="sb-fill" style="width:25%;background:var(--c1)"></div></div>
+    <span class="sb-pts" style="color:var(--c1)">+25</span>
+  </div>
+  <div class="sb-row">
+    <span class="sb-name">Momentum Quality</span>
+    <div class="sb-track"><div class="sb-fill" style="width:20%;background:var(--amber)"></div></div>
+    <span class="sb-pts" style="color:var(--amber)">+20</span>
+  </div>
+  <div class="sb-row">
+    <span class="sb-name">BOS Fresh</span>
+    <div class="sb-track"><div class="sb-fill" style="width:15%;background:var(--violet)"></div></div>
+    <span class="sb-pts" style="color:var(--violet)">+15</span>
+  </div>
+  <div class="sb-row">
+    <span class="sb-name">Liquidity Sweep</span>
+    <div class="sb-track"><div class="sb-fill" style="width:10%;background:var(--teal)"></div></div>
+    <span class="sb-pts" style="color:var(--teal)">+10</span>
+  </div>
+  <div class="sb-row">
+    <span class="sb-name">Regime Fit</span>
+    <div class="sb-track"><div class="sb-fill" style="width:15%;background:var(--teal)"></div></div>
+    <span class="sb-pts" style="color:var(--teal)">+15</span>
+  </div>
+  <div class="sb-row">
+    <span class="sb-name">Supertrend</span>
+    <div class="sb-track"><div class="sb-fill" style="width:10%;background:var(--c2)"></div></div>
+    <span class="sb-pts" style="color:var(--c2)">+10</span>
+  </div>
+  <div class="sb-row">
+    <span class="sb-name">Volume Expansion</span>
+    <div class="sb-track"><div class="sb-fill" style="width:5%;background:var(--orange)"></div></div>
+    <span class="sb-pts" style="color:var(--orange)">+5</span>
+  </div>
+  <div class="sb-row">
+    <span class="sb-name">Volatility Quality</span>
+    <div class="sb-track"><div class="sb-fill" style="width:5%;background:var(--orange)"></div></div>
+    <span class="sb-pts" style="color:var(--orange)">+5</span>
+  </div>
+  <div class="sb-row">
+    <span class="sb-name">Divergence / BB Edge</span>
+    <div class="sb-track"><div class="sb-fill" style="width:5%;background:var(--orange)"></div></div>
+    <span class="sb-pts" style="color:var(--orange)">+5</span>
+  </div>
+</div>
+
+<h3>Penalti Score</h3>
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>Situasi</th><th>Penalti</th></tr></thead>
+<tbody>
+  <tr><td>HTF berlawanan dengan signal (conflict)</td><td class="td-danger">-18 pts</td></tr>
+  <tr><td>Momentum melemah (decelerating)</td><td class="td-danger">-10 pts</td></tr>
+  <tr><td>Regime berlawanan (VOLATILE_CHAOS untuk grid)</td><td class="td-danger">-8 pts</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>Adaptive Minimum Score</h3>
+<p>v3 tidak guna minimum score tetap. MinScore berubah ikut regime semasa:</p>
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>Regime</th><th>Min Score</th><th>Sebab</th></tr></thead>
+<tbody>
+  <tr><td><span class="chip a">RANGE_ROTATION</span></td><td class="td-good">52</td><td>Market stabil, threshold lebih longgar</td></tr>
+  <tr><td><span class="chip v">SQUEEZE</span></td><td class="td-good">55</td><td>Compression — signal awal pun valid</td></tr>
+  <tr><td><span class="chip b">TREND_EXPANSION</span></td><td class="td-cyan">58</td><td>Momentum jelas, tak perlu terlalu ketat</td></tr>
+  <tr><td><span class="chip o">REVERSAL_TRANSITION</span></td><td class="td-warn">60</td><td>Tidak pasti, perlukan lebih konfirmasi</td></tr>
+  <tr><td><span class="chip g">TREND_MATURE</span></td><td class="td-warn">65</td><td>Risiko late entry, perlukan confirmation kuat</td></tr>
+  <tr><td><span class="chip r">VOLATILE_CHAOS</span></td><td class="td-danger">75</td><td>Sangat berbahaya, threshold sangat ketat</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<div class="divider"></div>
+
+<!-- INDICATOR CHIPS -->
+<section id="indicators">
+<h2>🔬 Indicator Chips dalam Signal Card</h2>
+
+<p>Chip-chip kecil di bahagian bawah setiap signal card menunjukkan faktor teknikal yang aktif. Hanya chip yang <strong>ON (berwarna)</strong> yang dipaparkan.</p>
+
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>Chip</th><th>Nama Penuh</th><th>Maksud</th></tr></thead>
+<tbody>
+  <tr><td><span class="chip g">ST BULL</span> / <span class="chip r">ST BEAR</span></td><td>Supertrend Direction</td><td>Supertrend menunjukkan arah bullish atau bearish. <strong>Wajib ada</strong> untuk signal keluar.</td></tr>
+  <tr><td><span class="chip g">MACD ↑</span> / <span class="chip r">MACD ↓</span></td><td>MACD Direction</td><td>Histogram MACD positif (bull) atau negatif (bear).</td></tr>
+  <tr><td><span class="chip b">MOM ACCEL</span></td><td>Momentum Acceleration</td><td>Histogram MACD sedang expand 3 lilin berturut. Ini tanda expansion phase sedang bermula — sangat berharga.</td></tr>
+  <tr><td><span class="chip t">BULL/BEAR SWEEP</span></td><td>Liquidity Sweep</td><td>Harga sweep low/high sebelumnya dan reclaim balik — tanda stop hunt selesai dan continuation akan berlaku.</td></tr>
+  <tr><td><span class="chip v">BOS FRESH</span></td><td>Break of Structure</td><td>Break of Structure berlaku dalam 4 lilin terakhir. Bukan stale BOS dari jauh.</td></tr>
+  <tr><td><span class="chip a">VOL SURGE</span></td><td>Volume Surge</td><td>Volume semasa >1.4× purata 20 lilin. Breakout dengan volume = lebih reliable.</td></tr>
+  <tr><td><span class="chip g">EMA STACK</span></td><td>EMA Alignment</td><td>EMA9 > EMA21 > EMA50 (bull) atau sebaliknya (bear). Stack lengkap = trend matang.</td></tr>
+  <tr><td><span class="chip v">SQUEEZE</span></td><td>Volatility Squeeze</td><td>BB width berada dalam percentile bawah 20% — tenaga sedang dikumpul untuk breakout.</td></tr>
+  <tr><td><span class="chip b">DIVERGENCE</span></td><td>RSI Divergence</td><td>Harga buat lower low tapi RSI buat higher low (bull div) atau sebaliknya. Leading signal.</td></tr>
+  <tr><td><span class="chip r">HIGH VOL ⚠</span></td><td>Amaran Volatility Tinggi</td><td>BB terlalu lebar. Grid berisiko. Kurangkan saiz.</td></tr>
+  <tr><td><span class="chip a">ADX RISING</span></td><td>ADX Meningkat</td><td>Trend sedang menguat. Trend yang kuat biasanya lebih mampan.</td></tr>
+  <tr><td><span class="chip t">EFF XX%</span></td><td>Breakout Efficiency</td><td>Nisbah badan lilin berbanding keseluruhan range. >60% = impulse lilin kuat, continuation lebih likely.</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="callout success">
+  <span class="callout-title">✅ Kombinasi Chips Terbaik</span>
+  Signal paling kuat: <span class="chip b">MOM ACCEL</span> + <span class="chip t">BULL SWEEP</span> + <span class="chip v">BOS FRESH</span> + <span class="chip a">VOL SURGE</span> — ini bermakna liquidity grab selesai, momentum muncul, struktur break, dengan volume confirmation.
+</div>
+</section>
+
+<div class="divider"></div>
+
+<!-- SETTINGS -->
+<section id="settings">
+<h2>⚙️ Cara Set Dashboard</h2>
+
+<h3>Timeframe — Pilih Yang Mana?</h3>
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>TF</th><th>HTF Auto</th><th>Sesuai Untuk</th><th>Kelebihan</th></tr></thead>
+<tbody>
+  <tr><td class="td-warn"><strong>15M</strong></td><td>4H</td><td>Scalping / intraday pendek</td><td>Signal lebih kerap, tapi lebih banyak noise</td></tr>
+  <tr><td class="td-good"><strong>1H</strong></td><td>4H</td><td>Swing harian / directional grid</td><td>Keseimbangan terbaik antara kekerapan dan kualiti signal</td></tr>
+  <tr><td class="td-cyan"><strong>4H</strong></td><td>1D</td><td>Swing panjang / position</td><td>Signal paling clean, tapi lebih jarang — sesuai untuk position sizing besar</td></tr>
+</tbody>
+</table>
+</div>
+<div class="callout tip">
+  <span class="callout-title">💡 Cadangan</span>
+  Mulakan dengan <strong>1H</strong>. Ia adalah sweet spot untuk directional grid dan swing. Guna 4H kalau nak konfirmasi lebih kuat sebelum masuk.
+</div>
+
+<h3>Min Probability — Set Berapa?</h3>
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>Setting</th><th>Kesan</th><th>Sesuai Untuk</th></tr></thead>
+<tbody>
+  <tr><td><strong>≥ 50–55%</strong></td><td>Banyak signal, kualiti sederhana</td><td>Exploration / tengok market overview</td></tr>
+  <tr><td class="td-warn"><strong>≥ 60%</strong></td><td>Signal sederhana ke baik</td><td>Default harian untuk majority trader</td></tr>
+  <tr><td class="td-good"><strong>≥ 65–70%</strong></td><td>Signal berkualiti, lebih sedikit</td><td>Jika nak berhati-hati atau capital besar</td></tr>
+  <tr><td class="td-cyan"><strong>≥ 75%+</strong></td><td>Signal rare tapi very high quality</td><td>Cari setup terbaik sahaja, sabar tinggi diperlukan</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<div class="divider"></div>
+
+<!-- MODES -->
+<section id="modes">
+<h2>🎛️ Mode: Grid / Directional / Swing</h2>
+
+<div class="callout warn">
+  <span class="callout-title">⚠️ Mode TIDAK Bertukar Automatik</span>
+  Mode kena tukar <strong>secara manual</strong>. Dashboard tidak auto-detect dan tukar mode. Kau yang kena decide berdasarkan regime yang dipaparkan.
+</div>
+
+<h3>◈ Grid Bot</h3>
+<p><strong>Pilih bila:</strong> Regime = <span class="chip a">RANGE_ROTATION</span></p>
+<p>Grid neutral yang buka order atas dan bawah dalam range. Bot beli bawah dan jual atas secara berulang. Tidak ada bias arah — sama banyak order atas dan bawah.</p>
+<p><strong>Guna paras daripada dashboard:</strong> Grid Low dan Grid High dalam bahagian "Grid Bot Setup" pada signal card.</p>
+<div class="callout danger">
+  <span class="callout-title">⛔ Jangan Guna Grid Bot Bila</span>
+  Regime = TREND_EXPANSION atau VOLATILE_CHAOS. Grid neutral dalam trending market akan kena float loss besar — semua order satu arah akan kena stop.
+</div>
+
+<h3>↗ Directional Grid</h3>
+<p><strong>Pilih bila:</strong> Regime = <span class="chip b">TREND_EXPANSION</span> atau <span class="chip g">TREND_MATURE</span></p>
+<p>Grid yang hanya buka order satu arah ikut signal. Kalau signal LONG, semua grid adalah long-only. Lebih selamat dalam trending market berbanding grid neutral.</p>
+<p><strong>Entry:</strong> Guna harga Entry dari card. <strong>SL:</strong> Wajib pasang di paras Stop Loss yang diberikan. <strong>TP:</strong> Tutup sebahagian di TP1, biarkan baki hingga TP2.</p>
+
+<h3>~ Swing</h3>
+<p><strong>Pilih bila:</strong> Regime = <span class="chip o">REVERSAL_TRANSITION</span> atau <span class="chip r">VOLATILE_CHAOS</span></p>
+<p>Masuk sekali, letak SL dan TP, keluar. Tiada grid. Guna sepenuhnya paras Entry / SL / TP1 / TP2 yang dashboard berikan. RR minimum cadangan: 1:1.5 (guna TP1), atau 1:2.5 (guna TP2).</p>
+
+<h3>Carta Pilihan Mode Ikut Regime</h3>
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>Regime</th><th>Mode Terbaik</th><th>Mode Alternatif</th><th>Elak</th></tr></thead>
+<tbody>
+  <tr><td><span class="chip b">TREND_EXPANSION</span></td><td class="td-good">↗ Directional Grid</td><td>~ Swing (TP1 sahaja)</td><td>◈ Grid Bot</td></tr>
+  <tr><td><span class="chip g">TREND_MATURE</span></td><td class="td-good">↗ Directional Grid</td><td>~ Swing (SL ketat)</td><td>◈ Grid Bot</td></tr>
+  <tr><td><span class="chip a">RANGE_ROTATION</span></td><td class="td-good">◈ Grid Bot</td><td>~ Swing (TP1 kecil)</td><td>↗ Directional Grid</td></tr>
+  <tr><td><span class="chip v">SQUEEZE</span></td><td class="td-warn">⏳ Tunggu</td><td>~ Swing kecil</td><td>◈ Grid Bot aktif</td></tr>
+  <tr><td><span class="chip r">VOLATILE_CHAOS</span></td><td class="td-danger">⛔ Duduk tepi</td><td>~ Swing saiz kecil</td><td>Semua grid</td></tr>
+  <tr><td><span class="chip o">REVERSAL_TRANSITION</span></td><td class="td-warn">~ Swing</td><td>↗ Directional (prob tinggi)</td><td>◈ Grid Bot</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<div class="divider"></div>
+
+<!-- FLOW KEPUTUSAN -->
+<section id="flow">
+<h2>🔄 Aliran Keputusan — Langkah demi Langkah</h2>
+
+<div class="flow">
+  <div class="flow-step">
+    <div class="flow-num">1</div>
+    <div class="flow-body">
+      <div class="flow-title">Tengok Regime di Header</div>
+      <div class="flow-desc">Sebelum buat apa-apa, tengok regime badge di sebelah kanan header. Ini adalah "suhu" market keseluruhan. Jika VOLATILE_CHAOS — pertimbangkan untuk tidak trade langsung.</div>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-num">2</div>
+    <div class="flow-body">
+      <div class="flow-title">Pilih Mode yang Sesuai</div>
+      <div class="flow-desc">Berdasarkan regime, tukar Mode dalam controls bar. EXPANSION/MATURE → Directional Grid. ROTATION → Grid Bot. REVERSAL/CHAOS → Swing.</div>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-num">3</div>
+    <div class="flow-body">
+      <div class="flow-title">Set Min Probability</div>
+      <div class="flow-desc">Dalam VOLATILE_CHAOS atau REVERSAL, naikkan ke ≥70%. Dalam TREND_EXPANSION yang clear, ≥60% sudah mencukupi. Jangan turunkan terlalu rendah dalam market berisiko.</div>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-num">4</div>
+    <div class="flow-body">
+      <div class="flow-title">Scan dan Tengok Signal Cards</div>
+      <div class="flow-desc">Tekan SCAN atau biarkan auto-scan. Signal dipaparkan ikut probabiliti tertinggi ke bawah. Fokus pada card di bahagian atas — ia adalah signal terkuat.</div>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-num">5</div>
+    <div class="flow-body">
+      <div class="flow-title">Baca Signal Card dengan Teliti</div>
+      <div class="flow-desc">Semak: (a) Probability % — berapa confident, (b) Weighted Score dan bar breakdown, (c) HTF Badge — aligned, conflict, atau neutral, (d) Regime di card itu, (e) Chip yang ON — lebih banyak chip baik = lebih kuat.</div>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-num">6</div>
+    <div class="flow-body">
+      <div class="flow-title">Semak HTF Badge</div>
+      <div class="flow-desc"><span class="chip b">✓ HTF ALIGNED</span> = ideal, masuk dengan keyakinan. <span class="chip a">~ HTF NEUTRAL</span> = boleh masuk, tapi reduced size. <span class="chip r">⚠ HTF CONFLICT</span> = berhati-hati, score sudah kena penalti -18pts, probability akan lebih rendah.</div>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-num">7</div>
+    <div class="flow-body">
+      <div class="flow-title">Guna Paras Entry / SL / TP</div>
+      <div class="flow-desc">Entry = harga semasa signal. SL = stop loss berdasarkan ATR × multiplier. TP1 = sasaran pertama (RR ~1:2). TP2 = sasaran extended (RR ~1:3.5). Letak SL dulu sebelum masuk trade.</div>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-num">8</div>
+    <div class="flow-body">
+      <div class="flow-title">Monitor dan Urus Trade</div>
+      <div class="flow-desc">Biarkan auto-scan pantau. Jika regime berubah kepada VOLATILE_CHAOS semasa trade sedang jalan — pertimbangkan untuk kurangkan saiz atau tutup awal di TP1.</div>
+    </div>
+  </div>
+</div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ENTRY SL TP -->
+<section id="levels">
+<h2>📍 Entry, Stop Loss, dan Take Profit</h2>
+
+<h3>Cara Kira Paras (Automatic)</h3>
+<p>Semua paras dikira secara automatik berdasarkan <strong>ATR (Average True Range) 14 lilin</strong>. ATR mengukur volatility semasa — jadi SL dan TP adalah dinamik mengikut keadaan pasaran.</p>
+
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>Paras</th><th>Formula</th><th>Penerangan</th></tr></thead>
+<tbody>
+  <tr><td><strong>Entry</strong></td><td>Harga close terkini</td><td>Masuk pada atau dekat harga ini selepas signal keluar</td></tr>
+  <tr><td><strong>Stop Loss</strong></td><td>Entry ± ATR × 1.2 (grid) / 1.5 (trend)</td><td>Multiplier lebih kecil dalam grid environment, lebih besar dalam trend</td></tr>
+  <tr><td><strong>TP1</strong></td><td>Entry ± ATR × 2.0</td><td>Sasaran pertama. Tutup 50–70% position di sini</td></tr>
+  <tr><td><strong>TP2</strong></td><td>Entry ± ATR × 3.5</td><td>Sasaran extended. Biarkan baki position. Move SL ke entry selepas TP1 hit.</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>Risk to Reward (RR)</h3>
+<p>RR dipaparkan di footer card. Cadangan minimum:</p>
+<ul style="list-style:none;display:flex;flex-direction:column;gap:8px;margin:12px 0">
+  <li style="display:flex;align-items:center;gap:10px;font-family:var(--sans);font-size:13px;color:var(--t3)"><span class="chip g">TP1</span> RR minimum <strong style="color:var(--t4)">1 : 1.5</strong> — Kalau lebih rendah, skip signal</li>
+  <li style="display:flex;align-items:center;gap:10px;font-family:var(--sans);font-size:13px;color:var(--t3)"><span class="chip g">TP2</span> RR ideal <strong style="color:var(--t4)">1 : 2.5+</strong> — Hold jika momentum masih kuat</li>
+</ul>
+
+<h3>Grid Bot Range</h3>
+<p>Jika Grid Bot Setup muncul dalam card, kau akan nampak:</p>
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>Field</th><th>Maksud</th><th>Guna Untuk</th></tr></thead>
+<tbody>
+  <tr><td><strong>Grid Low</strong></td><td>Had bawah grid</td><td>Set sebagai lower boundary dalam Pionex/3Commas/Bybit grid bot</td></tr>
+  <tr><td><strong>Grid High</strong></td><td>Had atas grid</td><td>Set sebagai upper boundary</td></tr>
+  <tr><td><strong>Grids</strong></td><td>Bilangan grid dicadangkan</td><td>20–30 grids untuk stable range, 10–15 untuk trending</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<div class="divider"></div>
+
+<!-- HTF LOGIC -->
+<section id="htf">
+<h2>🔭 HTF Logic — Weighted Influence (Bukan Hard Veto)</h2>
+
+<p>Ini adalah perubahan paling kritikal dari v2 ke v3. Dalam v2, HTF berlawanan = signal diblock sepenuhnya. Dalam v3, HTF hanya beri <strong>penalti skor -18 pts</strong> — signal masih boleh keluar jika faktor lain cukup kuat.</p>
+
+<h3>Kenapa Ini Lebih Baik?</h3>
+<p>Crypto market sangat rotational. Setup reversal yang paling profitable biasanya bermula <em>ketika HTF masih opposite</em>. V-reversal, mean reversion, dan liquidity sweeps semua berlaku di saat HTF masih bear/bull. Hard veto dalam v2 menyebabkan semua setup ini terlepas.</p>
+
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>HTF Badge</th><th>Kesan pada Score</th><th>Kesan pada Probability</th><th>Tindakan</th></tr></thead>
+<tbody>
+  <tr><td><span class="chip b">✓ HTF ALIGNED</span></td><td class="td-good">+25 pts</td><td class="td-good">+10%</td><td>Masuk dengan keyakinan penuh</td></tr>
+  <tr><td><span class="chip a">~ HTF NEUTRAL</span></td><td>+0 pts</td><td>+0%</td><td>Boleh masuk, kurangkan saiz sedikit</td></tr>
+  <tr><td><span class="chip r">⚠ HTF CONFLICT</span></td><td class="td-danger">-18 pts</td><td class="td-danger">-8%</td><td>Berhati-hati, pertimbangkan skip atau saiz sangat kecil</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="callout warn">
+  <span class="callout-title">⚠️ Bila HTF CONFLICT Tapi Signal Masih Keluar</span>
+  Bermakna faktor-faktor lain (liquidity sweep, momentum accel, BOS fresh, volume surge) cukup kuat untuk overcome penalti -18pts. Ini boleh jadi setup reversal awal yang sangat powerful — tapi juga lebih berisiko. Gunakan saiz lebih kecil dan SL lebih ketat.
+</div>
+</section>
+
+<div class="divider"></div>
+
+<!-- SENARIO SEBENAR -->
+<section id="scenarios">
+<h2>🎯 Senario Sebenar</h2>
+
+<h3>Senario 1: Classic Setup (Terbaik)</h3>
+<div class="code">
+Regime: <span class="val">TREND_EXPANSION</span>
+Signal: <span class="val">LONG</span> pada SOLUSDT
+Probability: <span class="val">82%</span>
+W.Score: <span class="val">73/100</span>
+HTF: <span class="val">✓ ALIGNED</span>
+Chips ON: MOM ACCEL + BULL SWEEP + BOS FRESH + VOL SURGE
+
+<span class="cmt">→ Ini adalah setup yang paling ideal.</span>
+<span class="cmt">→ Mode: Directional Grid atau Swing (hold ke TP2)</span>
+<span class="cmt">→ Saiz: Normal ke penuh</span>
+</div>
+
+<h3>Senario 2: HTF Conflict Tapi Probability Tinggi</h3>
+<div class="code">
+Regime: <span class="val">REVERSAL_TRANSITION</span>
+Signal: <span class="val">LONG</span> pada ETHUSDT
+Probability: <span class="val">68%</span>
+W.Score: <span class="val">61/100</span>
+HTF: <span class="warn">⚠ CONFLICT</span>
+Chips ON: MOM ACCEL + BULL SWEEP + BOS FRESH
+
+<span class="cmt">→ Signal keluar walaupun HTF conflict.</span>
+<span class="cmt">→ Kemungkinan reversal awal atau mean reversion.</span>
+<span class="cmt">→ Mode: Swing sahaja (bukan grid)</span>
+<span class="cmt">→ Saiz: Kecil (30–50% dari biasa). TP1 sahaja, jangan greed TP2.</span>
+<span class="cmt">→ SL: Ketat, jangan bagi ruang lebih.</span>
+</div>
+
+<h3>Senario 3: SQUEEZE — Apa Nak Buat?</h3>
+<div class="code">
+Regime Header: <span class="val">SQUEEZE</span>
+Signal: Ada beberapa LONG keluar, avg prob <span class="val">78%</span>
+Chips ON: SQUEEZE + MOM ACCEL + DIVERGENCE
+
+<span class="cmt">→ Signal keluar bermakna ada tanda-tanda breakout awal.</span>
+<span class="cmt">→ JANGAN masuk grid sekarang — range belum establish.</span>
+<span class="cmt">→ Pilihan 1: Tunggu regime flip ke EXPANSION, pastu masuk Directional Grid.</span>
+<span class="cmt">→ Pilihan 2: Masuk Swing kecil sekarang dengan expectation breakout ke atas.</span>
+<span class="cmt">→ Pilihan 3: Setup alert, monitor setiap scan.</span>
+</div>
+
+<h3>Senario 4: VOLATILE_CHAOS</h3>
+<div class="code">
+Regime Header: <span class="val">VOLATILE_CHAOS</span>
+Min score: <span class="val">75</span> (auto-elevated oleh engine)
+Signal: 1 LONG keluar dengan prob <span class="val">72%</span>
+
+<span class="cmt">→ Prob 72% tidak cukup untuk CHAOS (min threshold 75%).</span>
+<span class="cmt">→ Signal sepatutnya tidak keluar jika Min Prob ≥75%.</span>
+<span class="cmt">→ Jika ada signal keluar: saiz sangat kecil, TP1 sahaja.</span>
+<span class="cmt">→ Cadangan terbaik: duduk tepi dan monitor.</span>
+</div>
+</section>
+
+<div class="divider"></div>
+
+<!-- KESILAPAN BIASA -->
+<section id="mistakes">
+<h2>❌ Kesilapan Biasa yang Perlu Dielak</h2>
+
+<div class="callout danger">
+  <span class="callout-title">❌ Kesilapan 1: Pilih Grid Bot dalam TREND_EXPANSION</span>
+  Grid neutral dalam trending market = semua order satu arah akan kena stop. Bot akan terus top-up order yang salah arah. Ini boleh wipe account dalam masa singkat.
+</div>
+
+<div class="callout danger">
+  <span class="callout-title">❌ Kesilapan 2: Ignore HTF CONFLICT</span>
+  HTF conflict bukan bermakna signal salah — tapi ia bermakna risiko lebih tinggi. Ramai yang masuk full size walaupun HTF berlawanan. Selalu reduce size bila ada conflict.
+</div>
+
+<div class="callout danger">
+  <span class="callout-title">❌ Kesilapan 3: Set Min Prob Terlalu Rendah dalam CHAOS</span>
+  Bila market chaotic, turunkan min prob ke 50% akan keluarkan banyak signal lemah. Engine sudah penalti prob untuk CHAOS — jangan fight the engine dengan turunkan threshold.
+</div>
+
+<div class="callout danger">
+  <span class="callout-title">❌ Kesilapan 4: Masuk Selepas Move Besar (Late Entry)</span>
+  Jika signal muncul tapi harga sudah jauh dari Entry yang tertera — skip atau tunggu pullback. Dashboard scan setiap 90s, tapi market boleh gerak cepat. Signal yang dah stale lebih baik skip.
+</div>
+
+<div class="callout danger">
+  <span class="callout-title">❌ Kesilapan 5: Tak Pasang Stop Loss</span>
+  Entry, TP1, TP2 ada dalam card — tapi SL selalu diabaikan. Probability 85% masih bermakna ada 15% kemungkinan gagal. Pasang SL sebelum masuk trade, bukan selepas.
+</div>
+
+<div class="callout warn">
+  <span class="callout-title">⚠️ Kesilapan 6: Tukar Mode tapi Tak Ikut</span>
+  Mode dalam dashboard hanyalah rujukan konteks — ia tidak auto-setup trade. Kau kena manually setup grid/swing mengikut mode yang dipilih. Dashboard advisori, bukan auto-trade.
+</div>
+</section>
+
+<div class="divider"></div>
+
+<!-- CHECKLIST -->
+<section id="checklist">
+<h2>✅ Checklist Harian</h2>
+
+<h3>Pagi — Sebelum Market Aktif</h3>
+<ul class="checklist">
+  <li><span class="ck-icon">🌐</span><div><strong>Tengok Global Regime</strong> — Apa regime dominan dari 50 pasangan? Ini set "mood" strategy untuk hari ini.</div></li>
+  <li><span class="ck-icon">⚙️</span><div><strong>Set mode yang sesuai</strong> — Ikut regime, pilih Grid / Directional / Swing dalam controls bar.</div></li>
+  <li><span class="ck-icon">📊</span><div><strong>Set Min Prob mengikut situasi</strong> — Market berisiko? Naikkan ke 70%+. Market clear? 60% memadai.</div></li>
+  <li><span class="ck-icon">🔄</span><div><strong>Aktifkan Auto (90s)</strong> — Pastikan auto-scan ON supaya dashboard sentiasa update.</div></li>
+</ul>
+
+<h3>Setiap Scan — Baca Signal Card</h3>
+<ul class="checklist">
+  <li><span class="ck-icon">1️⃣</span><div>Regime di card — sama dengan regime global? Kalau berbeza, pair itu mungkin dalam cycle berbeza.</div></li>
+  <li><span class="ck-icon">2️⃣</span><div>Probability % — di atas threshold yang kau set? Lebih tinggi = lebih baik.</div></li>
+  <li><span class="ck-icon">3️⃣</span><div>HTF Badge — ALIGNED (ideal), NEUTRAL (ok), CONFLICT (reduce size).</div></li>
+  <li><span class="ck-icon">4️⃣</span><div>Chips — ada MOM ACCEL dan BULL/BEAR SWEEP? Ini kombinasi terkuat.</div></li>
+  <li><span class="ck-icon">5️⃣</span><div>RR — TP1 RR sekurang-kurangnya 1:1.5 sebelum masuk.</div></li>
+</ul>
+
+<h3>Sebelum Masuk Trade</h3>
+<ul class="checklist">
+  <li><span class="ck-icon">📍</span><div><strong>Semak harga semasa vs harga Entry</strong> — Jika dah bergerak lebih dari 1% dari Entry, pertimbangkan skip.</div></li>
+  <li><span class="ck-icon">🛡️</span><div><strong>Tetapkan SL dulu</strong> — Guna paras Stop Loss dari card. Jangan masuk tanpa SL.</div></li>
+  <li><span class="ck-icon">📏</span><div><strong>Kira saiz position</strong> — Risiko maksimum per trade: 1–2% modal. Kira dari jarak Entry ke SL.</div></li>
+  <li><span class="ck-icon">🎯</span><div><strong>Set TP1 dan TP2</strong> — Letak order take profit sebelum tinggalkan screen.</div></li>
+</ul>
+</section>
+
+<div class="divider"></div>
+
+<!-- FAQ -->
+<section id="faq">
+<h2>❓ Soalan Lazim</h2>
+
+<h3>Signal muncul tapi harga dah jauh bergerak — apa buat?</h3>
+<p>Skip. Dashboard scan 90 saat sekali tapi market boleh gerak dalam masa tersebut. Kalau harga dah melebihi 1–1.5% dari Entry, tunggu pullback atau tunggu scan seterusnya.</p>
+
+<h3>Kenapa kadang-kadang 0 signal muncul?</h3>
+<p>Dua kemungkinan: (1) Market sedang dalam VOLATILE_CHAOS — adaptive minScore dinaikkan ke 75, maka banyak signal yang tidak lulus. (2) Min Prob kau terlalu tinggi vs kondisi market. Cuba turunkan ke 60% dan tengok semula.</p>
+
+<h3>Boleh percaya probability 80%+ sepenuhnya?</h3>
+<p>Tidak. Probability adalah anggaran berdasarkan data teknikal — bukan jaminan. 80% bermakna 20% kemungkinan gagal. Selalu pasang SL tanpa mengira seberapa tinggi probability.</p>
+
+<h3>Kenapa ada signal LONG tapi HTF CONFLICT?</h3>
+<p>Ini adalah ciri v3 — berbeza dari v2 yang hard veto. Signal masih keluar kerana faktor lain (sweep, momentum, BOS) cukup kuat untuk overcome penalti HTF. Ia mungkin setup reversal awal. Guna saiz kecil dan SL ketat.</p>
+
+<h3>Berapa pasangan patut di-trade serentak?</h3>
+<p>Bergantung pengalaman. Pemula: 1–2 pasangan. Pertengahan: 3–5. Advanced: sehingga 8. Jangan trade semua 50 pasangan — fokus pada yang probability tertinggi sahaja.</p>
+
+<h3>Apa beza 1H vs 4H timeframe untuk grid?</h3>
+<p>1H lebih banyak signal, grid range lebih kecil, cocok untuk grid kerap dengan profit kecil. 4H lebih sedikit signal, grid range lebih lebar, cocok untuk position lebih besar dengan hold lebih lama.</p>
+
+<h3>Adakah Avg % dalam stats row berguna?</h3>
+<p>Ya — ini quick benchmark. Avg 80%+ bermakna hari ini market quality tinggi, setup kuat. Avg 55–65% bermakna market kurang jelas, lebih hati-hati. Avg &lt;55% bermakna pertimbangkan untuk tidak trade hari ini.</p>
+
+<h3>Scanner Table vs Signal Cards — Mana Nak Tengok?</h3>
+<p><strong>Signal Cards</strong> = untuk pair yang dah ada signal. Baca ini untuk buat keputusan trade. <strong>Scanner Table</strong> = overview semua 50 pasangan. Guna ini untuk tengok landscape market secara keseluruhan dan identify pair mana dalam momentum/sweep tanpa signal lagi.</p>
+
+</section>
+
+<div class="divider"></div>
+
+<p style="text-align:center;font-family:var(--sans);font-size:11px;color:var(--t1);padding:20px 0">
+  Grid Bot Signal Pro v3 · Institutional Grade · Panduan Pengguna<br>
+  <span style="color:var(--border3)">Panduan ini adalah untuk tujuan pendidikan sahaja. Bukan nasihat kewangan.</span>
+</p>
+
+<a href="#intro" class="back-top">↑ Kembali ke Atas</a>
+
+</main>
+</div>
+
+<script>
+// Highlight active sidebar link on scroll
+const sections = document.querySelectorAll('section[id]');
+const links = document.querySelectorAll('.sb-link');
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      links.forEach(l => l.classList.remove('active'));
+      const active = document.querySelector(`.sb-link[href="#${e.target.id}"]`);
+      if (active) active.classList.add('active');
+    }
+  });
+}, { threshold: 0.3 });
+sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

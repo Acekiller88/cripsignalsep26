@@ -1,0 +1,382 @@
+//@version=6
+//=====================================================================================
+//  INSTITUTIONAL MTF CONFLUENCE ENGINE — M15 SCALP/INTRADAY
+//  Original build for BTC/ETH & Top-cap perps on Bybit / Binance
+//  Framework: 1D (Master Trend) -> H4 (Confirmation) -> M15 (Execution)
+//
+//  ARCHITECTURE
+//   Module 1  MTF Bias Engine        (1D + H4 EMA structure, non-repaint via lookahead_off)
+//   Module 2  M15 Trend Engine       (fast/slow EMA)
+//   Module 3  Momentum Engine        (RSI, single oscillator — avoids redundant stacking)
+//   Module 4  Market Structure       (swing pivots -> BOS / CHoCH)
+//   Module 5  Volume Engine          (relative volume vs SMA)
+//   Module 6  Volatility Filter      (ATR% band — blocks squeeze & news-spike regimes)
+//   Module 7  Decision Gate          (1D+H4+M15 must fully align — hard filter, non-negotiable)
+//   Module 8  Confluence Scoring     (5 equal-weight boolean votes, auditable, 0-100)
+//   Module 9  Risk Engine            (structure+ATR SL, R-multiple TP1/TP2/TP3)
+//   Module 10 Trade-State Tracker    (BUY/SELL ACTIVE -> TP1/2/3 HIT / SL HIT, non-repaint)
+//   Module 11 Dashboard              (Signal, Grade, Confidence%, Entry, Trigger, SL, TP1-3, RR, Trend)
+//   Module 12 Alerts                 (entry + TP/SL lifecycle events)
+//
+//  NON-REPAINT NOTES
+//   - HTF EMA/RSI pulled with lookahead=barmerge.lookahead_off (no future leakage on history)
+//   - M15 trigger, structure breaks and signal firing all gated on barstate.isconfirmed
+//   - Swing pivots only resolve `swingLen` bars after they print (real pivot confirmation delay)
+//
+//  DISCLAIMER: Educational / analytical tool. Not financial advice. Verify all logic and
+//  run TradingView Strategy Tester / paper trading before risking real capital.
+//=====================================================================================
+indicator("Institutional MTF Confluence Engine [M15]", shorttitle="IMTF-M15", overlay=true,
+     max_labels_count=500, max_lines_count=500, max_boxes_count=500, max_bars_back=500)
+
+// #####################################################################################
+// MODULE 1 — INPUTS
+// #####################################################################################
+grpMTF = "Module 1 — Multi-Timeframe Bias"
+htfD        = input.timeframe("D",   "Daily Timeframe (Master Trend)", group=grpMTF)
+htfH4       = input.timeframe("240", "H4 Timeframe (Confirmation)",    group=grpMTF)
+emaFastLen  = input.int(21, "HTF Fast EMA", minval=2, group=grpMTF)
+emaSlowLen  = input.int(50, "HTF Slow EMA", minval=5, group=grpMTF)
+
+grpTrend = "Module 2 — M15 Trend Engine"
+trendFastLen = input.int(9,  "M15 Fast EMA", minval=2, group=grpTrend)
+trendSlowLen = input.int(21, "M15 Slow EMA", minval=3, group=grpTrend)
+
+grpMom = "Module 3 — Momentum Engine"
+rsiLen      = input.int(14, "RSI Length", minval=2, group=grpMom)
+rsiBullMin  = input.int(50, "RSI Bull Min", group=grpMom)
+rsiBullMax  = input.int(75, "RSI Bull Max (avoid overbought)", group=grpMom)
+rsiBearMax  = input.int(50, "RSI Bear Max", group=grpMom)
+rsiBearMin  = input.int(25, "RSI Bear Min (avoid oversold)", group=grpMom)
+
+grpStruct = "Module 4 — Market Structure Engine"
+swingLen  = input.int(5, "Swing Pivot Length (bars each side)", minval=2, maxval=20, group=grpStruct)
+showStructLabels = input.bool(true, "Show BOS / CHoCH Labels", group=grpStruct)
+
+grpVol = "Module 5 — Volume Engine"
+volSmaLen = input.int(20, "Volume SMA Length", minval=5, group=grpVol)
+volMult   = input.float(1.2, "Volume Spike Multiplier", minval=1.0, step=0.05, group=grpVol)
+
+grpAtr = "Module 6 — Volatility Filter"
+atrLen      = input.int(14, "ATR Length", minval=2, group=grpAtr)
+atrMinPerc  = input.float(0.05, "Min ATR % of Price (squeeze filter)", minval=0.0, step=0.01, group=grpAtr)
+atrMaxPerc  = input.float(1.50, "Max ATR % of Price (news-spike filter)", minval=0.1, step=0.1, group=grpAtr)
+
+grpRisk = "Module 9 — Risk Engine (SL / TP)"
+slAtrBuffer = input.float(0.25, "SL Buffer (x ATR beyond swing)", minval=0.0, step=0.05, group=grpRisk)
+slAtrFallbackMult = input.float(1.5, "SL Fallback (x ATR, if no swing available)", minval=0.5, step=0.1, group=grpRisk)
+tp1R = input.float(1.0, "TP1 (R multiple)", minval=0.1, step=0.1, group=grpRisk)
+tp2R = input.float(2.0, "TP2 (R multiple)", minval=0.1, step=0.1, group=grpRisk)
+tp3R = input.float(3.5, "TP3 (R multiple)", minval=0.1, step=0.1, group=grpRisk)
+
+grpScore = "Module 8 — Scoring & Grading"
+minScoreToTrade = input.int(60, "Minimum Score To Fire Signal (%)", minval=0, maxval=100, group=grpScore)
+gradeApThresh   = input.int(90, "Grade A+ Threshold", minval=0, maxval=100, group=grpScore)
+gradeAThresh    = input.int(80, "Grade A  Threshold", minval=0, maxval=100, group=grpScore)
+gradeBThresh    = input.int(70, "Grade B  Threshold", minval=0, maxval=100, group=grpScore)
+gradeCThresh    = input.int(60, "Grade C  Threshold", minval=0, maxval=100, group=grpScore)
+
+grpDash = "Module 11 — Dashboard"
+showDash = input.bool(true, "Show Dashboard", group=grpDash)
+dashPos  = input.string("top_right", "Dashboard Position",
+     options=["top_right", "top_left", "bottom_right", "bottom_left"], group=grpDash)
+
+colBull    = #14D990
+colBear    = #F24968
+colNeutral = color.gray
+
+// #####################################################################################
+// MODULE 1 — MTF BIAS ENGINE (non-repaint: lookahead_off)
+// #####################################################################################
+[dEmaF, dEmaS]   = request.security(syminfo.tickerid, htfD,  [ta.ema(close, emaFastLen), ta.ema(close, emaSlowLen)], lookahead=barmerge.lookahead_off)
+[h4EmaF, h4EmaS] = request.security(syminfo.tickerid, htfH4, [ta.ema(close, emaFastLen), ta.ema(close, emaSlowLen)], lookahead=barmerge.lookahead_off)
+h4RsiVal         = request.security(syminfo.tickerid, htfH4, ta.rsi(close, rsiLen), lookahead=barmerge.lookahead_off)
+
+dBull  = dEmaF  > dEmaS
+dBear  = dEmaF  < dEmaS
+h4Bull = h4EmaF > h4EmaS
+h4Bear = h4EmaF < h4EmaS
+
+mtfAlignBull = dBull and h4Bull   // Daily has ultimate authority, H4 confirms
+mtfAlignBear = dBear and h4Bear
+
+// #####################################################################################
+// MODULE 2 — M15 TREND ENGINE
+// #####################################################################################
+emaFastM15   = ta.ema(close, trendFastLen)
+emaSlowM15   = ta.ema(close, trendSlowLen)
+m15TrendBull = emaFastM15 > emaSlowM15
+m15TrendBear = emaFastM15 < emaSlowM15
+
+// #####################################################################################
+// MODULE 3 — MOMENTUM ENGINE
+// #####################################################################################
+rsiVal    = ta.rsi(close, rsiLen)
+momBullOk = rsiVal > rsiBullMin and rsiVal < rsiBullMax
+momBearOk = rsiVal < rsiBearMax and rsiVal > rsiBearMin
+
+// #####################################################################################
+// MODULE 4 — MARKET STRUCTURE ENGINE (swing pivots -> BOS / CHoCH)
+// #####################################################################################
+swH = ta.pivothigh(high, swingLen, swingLen)
+swL = ta.pivotlow(low, swingLen, swingLen)
+
+var float swingHighAnchor = na   // persistent reference level for SL/trigger math
+var float swingLowAnchor  = na
+var float lastSwingHigh   = na   // "live" level, consumed once broken
+var float lastSwingLow    = na
+var int   structTrend     = 0    // 1 = bullish structure, -1 = bearish, 0 = neutral
+
+if not na(swH)
+    swingHighAnchor := swH
+    lastSwingHigh   := swH
+if not na(swL)
+    swingLowAnchor  := swL
+    lastSwingLow    := swL
+
+bosBull = false
+bosBear = false
+chochBull = false
+chochBear = false
+
+if barstate.isconfirmed
+    if not na(lastSwingHigh) and close > lastSwingHigh
+        chochBull := structTrend <= 0
+        bosBull   := structTrend > 0
+        structTrend := 1
+        lastSwingHigh := na   // consumed — wait for the next pivot before re-arming
+    if not na(lastSwingLow) and close < lastSwingLow
+        chochBear := structTrend >= 0
+        bosBear   := structTrend < 0
+        structTrend := -1
+        lastSwingLow := na
+
+if showStructLabels and chochBull
+    label.new(bar_index, low, "CHoCH▲", style=label.style_label_up, color=color.new(colBull, 80), textcolor=colBull, size=size.tiny)
+if showStructLabels and bosBull
+    label.new(bar_index, low, "BOS▲", style=label.style_label_up, color=color.new(colBull, 85), textcolor=colBull, size=size.tiny)
+if showStructLabels and chochBear
+    label.new(bar_index, high, "CHoCH▼", style=label.style_label_down, color=color.new(colBear, 80), textcolor=colBear, size=size.tiny)
+if showStructLabels and bosBear
+    label.new(bar_index, high, "BOS▼", style=label.style_label_down, color=color.new(colBear, 85), textcolor=colBear, size=size.tiny)
+
+// #####################################################################################
+// MODULE 5 — VOLUME ENGINE
+// #####################################################################################
+volSma = ta.sma(volume, volSmaLen)
+volOk  = volume > volSma * volMult
+
+// #####################################################################################
+// MODULE 6 — VOLATILITY FILTER
+// #####################################################################################
+atrVal        = ta.atr(atrLen)
+atrPerc       = atrVal / close * 100
+volatilityOk  = atrPerc >= atrMinPerc and atrPerc <= atrMaxPerc
+
+// #####################################################################################
+// MODULE 7 — M15 TRIGGER + DECISION GATE
+// #####################################################################################
+triggerBull = m15TrendBull and (bosBull or chochBull) and barstate.isconfirmed
+triggerBear = m15TrendBear and (bosBear or chochBear) and barstate.isconfirmed
+
+rawBuySignal  = mtfAlignBull and triggerBull
+rawSellSignal = mtfAlignBear and triggerBear
+
+counterTrendBull = triggerBull and not mtfAlignBull   // M15 wants long, HTF disagrees -> filtered
+counterTrendBear = triggerBear and not mtfAlignBear
+
+// #####################################################################################
+// MODULE 8 — CONFLUENCE SCORING (5 equal-weight votes = 100 pts, fully auditable)
+// #####################################################################################
+voteBull1 = h4Bull and h4RsiVal > 50     // H4 momentum agrees with H4 trend
+voteBull2 = structTrend == 1             // M15 structure is bullish (BOS/CHoCH confirmed)
+voteBull3 = momBullOk                    // M15 RSI in healthy bullish zone (not overbought)
+voteBull4 = volOk                        // Participation confirms the move
+voteBull5 = volatilityOk                 // Not squeezed, not a news-spike regime
+scoreBull = int(((voteBull1 ? 1 : 0) + (voteBull2 ? 1 : 0) + (voteBull3 ? 1 : 0) + (voteBull4 ? 1 : 0) + (voteBull5 ? 1 : 0)) / 5.0 * 100)
+
+voteBear1 = h4Bear and h4RsiVal < 50
+voteBear2 = structTrend == -1
+voteBear3 = momBearOk
+voteBear4 = volOk
+voteBear5 = volatilityOk
+scoreBear = int(((voteBear1 ? 1 : 0) + (voteBear2 ? 1 : 0) + (voteBear3 ? 1 : 0) + (voteBear4 ? 1 : 0) + (voteBear5 ? 1 : 0)) / 5.0 * 100)
+
+f_grade(score) =>
+    score >= gradeApThresh ? "A+" : score >= gradeAThresh ? "A" : score >= gradeBThresh ? "B" : score >= gradeCThresh ? "C" : "D"
+
+buySignal  = rawBuySignal  and scoreBull >= minScoreToTrade
+sellSignal = rawSellSignal and scoreBear >= minScoreToTrade
+
+// #####################################################################################
+// MODULE 9 — RISK ENGINE (structure + ATR stop, R-multiple targets)
+// #####################################################################################
+slLongRaw  = not na(swingLowAnchor)  ? math.min(swingLowAnchor, low)   - atrVal * slAtrBuffer : close - atrVal * slAtrFallbackMult
+slShortRaw = not na(swingHighAnchor) ? math.max(swingHighAnchor, high) + atrVal * slAtrBuffer : close + atrVal * slAtrFallbackMult
+
+// #####################################################################################
+// MODULE 10 — TRADE-STATE TRACKER (non-repaint lifecycle: ACTIVE -> TP/SL HIT)
+// #####################################################################################
+var int    tradeDir     = 0     // 1 long, -1 short, 0 flat
+var float  activeEntry  = na
+var float  activeTrigger= na
+var float  activeSL     = na
+var float  activeTP1    = na
+var float  activeTP2    = na
+var float  activeTP3    = na
+var float  activeRR     = na
+var int    activeScore  = na
+var string activeGrade  = na
+var string tradeStatus  = "NO SETUP"
+var bool   tp1Hit       = false
+var bool   tp2Hit       = false
+
+tp1HitNow = false
+tp2HitNow = false
+tp3HitNow = false
+slHitNow  = false
+
+if buySignal and tradeDir != 1
+    tradeDir      := 1
+    activeEntry   := close
+    activeTrigger := swingHighAnchor
+    activeSL      := slLongRaw
+    stopDist       = close - activeSL
+    activeTP1     := close + stopDist * tp1R
+    activeTP2     := close + stopDist * tp2R
+    activeTP3     := close + stopDist * tp3R
+    activeRR      := tp2R
+    activeScore   := scoreBull
+    activeGrade   := f_grade(scoreBull)
+    tradeStatus   := "BUY ACTIVE"
+    tp1Hit        := false
+    tp2Hit        := false
+
+if sellSignal and tradeDir != -1
+    tradeDir      := -1
+    activeEntry   := close
+    activeTrigger := swingLowAnchor
+    activeSL      := slShortRaw
+    stopDist2      = activeSL - close
+    activeTP1     := close - stopDist2 * tp1R
+    activeTP2     := close - stopDist2 * tp2R
+    activeTP3     := close - stopDist2 * tp3R
+    activeRR      := tp2R
+    activeScore   := scoreBear
+    activeGrade   := f_grade(scoreBear)
+    tradeStatus   := "SELL ACTIVE"
+    tp1Hit        := false
+    tp2Hit        := false
+
+if tradeDir == 1
+    if low <= activeSL
+        slHitNow    := true
+        tradeStatus := "SL HIT"
+        tradeDir    := 0
+    else if high >= activeTP3
+        tp3HitNow   := true
+        tradeStatus := "TP3 HIT"
+        tradeDir    := 0
+    else if high >= activeTP2 and not tp2Hit
+        tp2HitNow   := true
+        tp2Hit      := true
+        tradeStatus := "TP2 HIT"
+    else if high >= activeTP1 and not tp1Hit
+        tp1HitNow   := true
+        tp1Hit      := true
+        tradeStatus := "TP1 HIT"
+
+if tradeDir == -1
+    if high >= activeSL
+        slHitNow    := true
+        tradeStatus := "SL HIT"
+        tradeDir    := 0
+    else if low <= activeTP3
+        tp3HitNow   := true
+        tradeStatus := "TP3 HIT"
+        tradeDir    := 0
+    else if low <= activeTP2 and not tp2Hit
+        tp2HitNow   := true
+        tp2Hit      := true
+        tradeStatus := "TP2 HIT"
+    else if low <= activeTP1 and not tp1Hit
+        tp1HitNow   := true
+        tp1Hit      := true
+        tradeStatus := "TP1 HIT"
+
+// #####################################################################################
+// PLOTTING
+// #####################################################################################
+plotshape(buySignal,  title="BUY",  style=shape.triangleup,   location=location.belowbar, color=colBull, size=size.small, text="BUY")
+plotshape(sellSignal, title="SELL", style=shape.triangledown, location=location.abovebar, color=colBear, size=size.small, text="SELL")
+
+plot(tradeDir != 0 ? activeSL  : na, title="Stop Loss", color=color.new(colBear, 0), style=plot.style_circles, linewidth=1)
+plot(tradeDir != 0 ? activeTP1 : na, title="TP1",       color=color.new(colBull, 0), style=plot.style_circles, linewidth=1)
+plot(tradeDir != 0 ? activeTP2 : na, title="TP2",       color=color.new(colBull, 0), style=plot.style_circles, linewidth=1)
+plot(tradeDir != 0 ? activeTP3 : na, title="TP3",       color=color.new(colBull, 0), style=plot.style_circles, linewidth=1)
+
+// #####################################################################################
+// MODULE 11 — DASHBOARD
+// #####################################################################################
+f_pos(p) =>
+    switch p
+        "top_right"    => position.top_right
+        "top_left"     => position.top_left
+        "bottom_right" => position.bottom_right
+        "bottom_left"  => position.bottom_left
+        => position.top_right
+
+dTrendTxt   = dBull ? "Bull" : dBear ? "Bear" : "Flat"
+h4TrendTxt  = h4Bull ? "Bull" : h4Bear ? "Bear" : "Flat"
+m15TrendTxt = m15TrendBull ? "Bull" : m15TrendBear ? "Bear" : "Flat"
+trendStatusTxt = "D:" + dTrendTxt + "  H4:" + h4TrendTxt + "  M15:" + m15TrendTxt
+
+displayDir   = tradeDir != 0 ? tradeDir : (mtfAlignBull ? 1 : mtfAlignBear ? -1 : 0)
+displayScore = tradeDir != 0 ? activeScore : (mtfAlignBull ? scoreBull : mtfAlignBear ? scoreBear : math.max(scoreBull, scoreBear))
+displayGrade = tradeDir != 0 ? activeGrade : (mtfAlignBull ? f_grade(scoreBull) : mtfAlignBear ? f_grade(scoreBear) : ((counterTrendBull or counterTrendBear) ? "D" : "-"))
+
+signalTxt = tradeDir != 0 ? tradeStatus :
+     counterTrendBull ? "COUNTER-TREND BUY (Filtered)" :
+     counterTrendBear ? "COUNTER-TREND SELL (Filtered)" :
+     mtfAlignBull ? "WATCH — BUY BIAS" :
+     mtfAlignBear ? "WATCH — SELL BIAS" : "NO SETUP"
+
+headerCol = displayDir == 1 ? colBull : displayDir == -1 ? colBear : colNeutral
+
+var table dash = table.new(f_pos(dashPos), 2, 12, border_width=1, border_color=color.new(color.gray, 60), bgcolor=color.new(color.black, 10))
+
+if showDash and barstate.islast
+    table.cell(dash, 0, 0, "INSTITUTIONAL MTF ENGINE", text_color=color.white, bgcolor=headerCol, text_size=size.small)
+    table.merge_cells(dash, 0, 0, 1, 0)
+    table.cell(dash, 0, 1, "Signal", text_color=color.gray, text_size=size.small)
+    table.cell(dash, 1, 1, signalTxt, text_color=headerCol, text_halign=text.align_right, text_size=size.small)
+    table.cell(dash, 0, 2, "Grade", text_color=color.gray, text_size=size.small)
+    table.cell(dash, 1, 2, displayGrade, text_color=headerCol, text_halign=text.align_right, text_size=size.small)
+    table.cell(dash, 0, 3, "Confidence", text_color=color.gray, text_size=size.small)
+    table.cell(dash, 1, 3, str.tostring(displayScore) + "%", text_color=color.white, text_halign=text.align_right, text_size=size.small)
+    table.cell(dash, 0, 4, "Entry Price", text_color=color.gray, text_size=size.small)
+    table.cell(dash, 1, 4, tradeDir != 0 ? str.tostring(activeEntry, format.mintick) : "-", text_color=color.white, text_halign=text.align_right, text_size=size.small)
+    table.cell(dash, 0, 5, "Trigger Price", text_color=color.gray, text_size=size.small)
+    table.cell(dash, 1, 5, (tradeDir != 0 and not na(activeTrigger)) ? str.tostring(activeTrigger, format.mintick) : "-", text_color=color.white, text_halign=text.align_right, text_size=size.small)
+    table.cell(dash, 0, 6, "Stop Loss", text_color=color.gray, text_size=size.small)
+    table.cell(dash, 1, 6, tradeDir != 0 ? str.tostring(activeSL, format.mintick) : "-", text_color=color.new(colBear, 0), text_halign=text.align_right, text_size=size.small)
+    table.cell(dash, 0, 7, "TP1", text_color=color.gray, text_size=size.small)
+    table.cell(dash, 1, 7, tradeDir != 0 ? str.tostring(activeTP1, format.mintick) : "-", text_color=color.new(colBull, 0), text_halign=text.align_right, text_size=size.small)
+    table.cell(dash, 0, 8, "TP2", text_color=color.gray, text_size=size.small)
+    table.cell(dash, 1, 8, tradeDir != 0 ? str.tostring(activeTP2, format.mintick) : "-", text_color=color.new(colBull, 0), text_halign=text.align_right, text_size=size.small)
+    table.cell(dash, 0, 9, "TP3", text_color=color.gray, text_size=size.small)
+    table.cell(dash, 1, 9, tradeDir != 0 ? str.tostring(activeTP3, format.mintick) : "-", text_color=color.new(colBull, 0), text_halign=text.align_right, text_size=size.small)
+    table.cell(dash, 0, 10, "Risk : Reward", text_color=color.gray, text_size=size.small)
+    table.cell(dash, 1, 10, tradeDir != 0 ? "1 : " + str.tostring(activeRR, "#.##") : "-", text_color=color.white, text_halign=text.align_right, text_size=size.small)
+    table.cell(dash, 0, 11, "Trend Status", text_color=color.gray, text_size=size.small)
+    table.cell(dash, 1, 11, trendStatusTxt, text_color=color.white, text_halign=text.align_right, text_size=size.small)
+
+// #####################################################################################
+// MODULE 12 — ALERTS
+// #####################################################################################
+alertcondition(buySignal,  title="Institutional BUY",  message="{{ticker}} BUY | 1D+H4+M15 aligned | Entry {{close}}")
+alertcondition(sellSignal, title="Institutional SELL", message="{{ticker}} SELL | 1D+H4+M15 aligned | Entry {{close}}")
+alertcondition(tp1HitNow,  title="TP1 Hit",  message="{{ticker}} TP1 reached — consider partial exit / move SL to breakeven")
+alertcondition(tp2HitNow,  title="TP2 Hit",  message="{{ticker}} TP2 reached")
+alertcondition(tp3HitNow,  title="TP3 Hit — Trade Complete", message="{{ticker}} TP3 reached — trade closed")
+alertcondition(slHitNow,   title="Stop Loss Hit", message="{{ticker}} Stop-loss triggered — trade closed")

@@ -1,0 +1,272 @@
+//@version=6
+strategy("Institutional SMC Decision Engine V2 Strategy [15M Crypto]", overlay=true, initial_capital=10000, pyramiding=0, default_qty_type=strategy.percent_of_equity, default_qty_value=10, process_orders_on_close=true)
+
+// -----------------------------------------------------------------------------
+// Shared logic adapted from the indicator version.
+// -----------------------------------------------------------------------------
+
+// Inputs
+grpTrend = "Module 1 — Trend Engine (HTF Bias)"
+htfDaily  = input.timeframe("D",   "Daily Timeframe",  group=grpTrend)
+htf4h     = input.timeframe("240", "4H Timeframe",     group=grpTrend)
+htf1h     = input.timeframe("60",  "1H Timeframe",     group=grpTrend)
+emaFastLen = input.int(21, "HTF Fast EMA", minval=2, group=grpTrend)
+emaSlowLen = input.int(50, "HTF Slow EMA", minval=5, group=grpTrend)
+
+grpStruct = "Module 2 — Market Structure Engine"
+extLen = input.int(15, "External (Major) Swing Length", minval=3, group=grpStruct)
+intLen = input.int(5, "Internal (Minor) Swing Length", minval=2, group=grpStruct)
+eqTolPerc = input.float(0.06, "Equal High/Low Tolerance (%)", minval=0.01, step=0.01, group=grpStruct)
+
+grpLiq = "Module 3 — Liquidity Engine"
+sweepLookback = input.int(6, "Sweep Validity Window (bars)", minval=1, group=grpLiq)
+voidATRMult = input.float(2.2, "Liquidity Void Candle Size (x ATR)", minval=1.0, step=0.1, group=grpLiq)
+consumptionWindow = input.int(2, "Liquidity Consumption Confirm Window (bars)", minval=1, maxval=5, group=grpLiq)
+
+grpOB = "Module 4 — Order Block Engine"
+obSearchBack = input.int(10, "OB Search-Back Range (bars)", minval=2, maxval=30, group=grpOB)
+maxOB = input.int(6, "Max Order Blocks per Side", minval=1, maxval=15, group=grpOB)
+obDeepInvalidATR = input.float(0.5, "Deep Invalidation Distance (x ATR)", minval=0.1, step=0.1, group=grpOB)
+
+grpFVG = "Module 5 — Fair Value Gap Engine"
+maxFVG = input.int(6, "Max FVGs per Side", minval=1, maxval=15, group=grpFVG)
+fvgMinATRPerc = input.float(0.15, "Minimum FVG Size (x ATR)", minval=0.0, step=0.05, group=grpFVG)
+
+grpVol = "Module 6 — Volume Engine"
+volSmaLen = input.int(20, "Volume SMA Length", minval=5, group=grpVol)
+volSpikeMult = input.float(1.3, "Volume Spike Multiplier", minval=1.0, step=0.05, group=grpVol)
+volClimaxMult = input.float(2.2, "Volume Climax Multiplier", minval=1.5, step=0.1, group=grpVol)
+volLowFloor = input.float(0.55, "Low-Volume Reject Floor (x avg)", minval=0.1, step=0.05, group=grpVol)
+absorptionBodyMax = input.float(0.3, "Absorption Max Body Ratio", minval=0.05, maxval=0.6, step=0.05, group=grpVol)
+
+grpATR = "Module 7 — Volatility Engine"
+atrLen = input.int(14, "ATR Length", minval=2, group=grpATR)
+atrLowPerc  = input.float(0.12, "Low-ATR Threshold (% of price)", minval=0.01, step=0.01, group=grpATR)
+atrHighPerc = input.float(1.10, "Extreme-ATR Threshold (% of price)", minval=0.1, step=0.05, group=grpATR)
+abnormalExpansionMult = input.float(3.0, "Abnormal Candle Expansion (x ATR)", minval=1.5, step=0.1, group=grpATR)
+
+grpMom = "Module 8 — Momentum Engine"
+strongBodyRatioIn = input.float(0.55, "Strong Body Ratio (body/range)", minval=0.1, maxval=0.95, step=0.05, group=grpMom)
+
+grpRegime = "Regime Detection (drives Adaptive Scoring)"
+adxLen = input.int(14, "ADX/DMI Length", minval=2, group=grpRegime)
+adxTrendMin = input.int(22, "ADX Trending Threshold", minval=10, maxval=40, group=grpRegime)
+adxRangeMax = input.int(18, "ADX Ranging Threshold", minval=5, maxval=35, group=grpRegime)
+
+grpScore = "Module 9 — Decision Engine"
+wTrend  = input.float(25, "Base Weight: Trend %",       minval=0, maxval=100, group=grpScore)
+wStruct = input.float(20, "Base Weight: Structure %",    minval=0, maxval=100, group=grpScore)
+wLiq    = input.float(15, "Base Weight: Liquidity %",    minval=0, maxval=100, group=grpScore)
+wOB     = input.float(15, "Base Weight: Order Block %",  minval=0, maxval=100, group=grpScore)
+wFVG    = input.float(10, "Base Weight: FVG %",          minval=0, maxval=100, group=grpScore)
+wMom    = input.float(5,  "Base Weight: Momentum %",     minval=0, maxval=100, group=grpScore)
+wVolu   = input.float(5,  "Base Weight: Volume %",       minval=0, maxval=100, group=grpScore)
+wATRw   = input.float(5,  "Base Weight: Volatility %",   minval=0, maxval=100, group=grpScore)
+confidenceFloor = input.int(60, "Minimum Confidence to Confirm a Completed Setup", minval=40, maxval=95, group=grpScore)
+maxStageGap = input.int(40, "State-Machine Stage Timeout (bars)", minval=10, maxval=100, group=grpScore)
+signalCooldown = input.int(4, "Cooldown Between Signals (bars)", minval=0, maxval=50, group=grpScore)
+
+grpRisk = "Module 10 — Risk Management Engine"
+atrSLMult = input.float(1.8, "Base ATR Stop Multiplier", minval=0.5, step=0.1, group=grpRisk)
+structBufferATR = input.float(0.25, "Structure SL Buffer (x ATR)", minval=0, step=0.05, group=grpRisk)
+tp1R = input.float(1.5, "TP1 (R multiple)", minval=0.1, step=0.1, group=grpRisk)
+tp2R = input.float(2.5, "TP2 (R multiple)", minval=0.1, step=0.1, group=grpRisk)
+tp3R = input.float(4.0, "TP3 (R multiple)", minval=0.1, step=0.1, group=grpRisk)
+trailAtrMult = input.float(2.0, "Trailing Stop (x ATR, active after TP1)", minval=0.5, step=0.1, group=grpRisk)
+maxHoldBars = input.int(96, "Max Holding Time (bars, 96 = 24h on 15M)", minval=10, group=grpRisk)
+
+// Basic helpers
+f_htfBias() =>
+    ef = ta.ema(close[1], emaFastLen)
+    es = ta.ema(close[1], emaSlowLen)
+    [ef > es, ef < es]
+
+confirmedBar = barstate.isconfirmed
+
+[dBull, dBear] = request.security(syminfo.tickerid, htfDaily, f_htfBias(), lookahead=barmerge.lookahead_off)
+[h4Bull, h4Bear] = request.security(syminfo.tickerid, htf4h, f_htfBias(), lookahead=barmerge.lookahead_off)
+[h1Bull, h1Bear] = request.security(syminfo.tickerid, htf1h, f_htfBias(), lookahead=barmerge.lookahead_off)
+
+// Trend / structure variables
+extHighHist1 = ta.highest(high, extLen)
+extLowHist1  = ta.lowest(low, extLen)
+extHighHist2 = ta.highest(high, extLen + 1)
+extLowHist2  = ta.lowest(low, extLen + 1)
+intHighHist1 = ta.highest(high, intLen)
+intLowHist1  = ta.lowest(low, intLen)
+intHighHist2 = ta.highest(high, intLen + 1)
+intLowHist2  = ta.lowest(low, intLen + 1)
+
+extSwingHigh = ta.highest(high, extLen)
+extSwingLow  = ta.lowest(low, extLen)
+intSwingHigh = ta.highest(high, intLen)
+intSwingLow  = ta.lowest(low, intLen)
+
+extTrend = close > extSwingHigh[1] ? 1 : close < extSwingLow[1] ? -1 : 0
+intTrend = close > intSwingHigh[1] ? 1 : close < intSwingLow[1] ? -1 : 0
+
+extCHoCHbull = close > extSwingHigh[1] and close[1] < extSwingLow[1]
+extCHoCHbear = close < extSwingLow[1] and close[1] > extSwingHigh[1]
+intCHoCHbull = close > intSwingHigh[1] and close[1] < intSwingLow[1]
+intCHoCHbear = close < intSwingLow[1] and close[1] > intSwingHigh[1]
+
+extBOSbull = close > extSwingHigh[1] and close[1] > extSwingHigh[1]
+extBOSbear = close < extSwingLow[1] and close[1] < extSwingLow[1]
+intBOSbull = close > intSwingHigh[1] and close[1] > intSwingHigh[1]
+intBOSbear = close < intSwingLow[1] and close[1] < intSwingLow[1]
+
+// HTF bias and regime
+biasBullOK = dBull and h4Bull and h1Bull
+biasBearOK = dBear and h4Bear and h1Bear
+
+atrValPre = ta.atr(atrLen)
+atrPercPre = atrValPre > 0 ? atrValPre / close * 100.0 : 0.0
+atrVal = atrValPre
+atrPerc = atrPercPre
+
+adx = ta.dmi(adxLen, adxLen, adxLen)
+regimeTrending = adx >= adxTrendMin
+regimeRanging  = adx <= adxRangeMax
+regimeHighVol  = atrPerc > atrHighPerc
+regimeLowVol   = atrPerc < atrLowPerc
+regimeLabel = regimeTrending ? "Trending" : regimeRanging ? "Ranging" : "Transitional"
+regimeVolLabel = regimeHighVol ? "HighVol" : regimeLowVol ? "LowVol" : "Normal"
+
+trendBullScore = biasBullOK ? 100.0 : 0.0
+trendBearScore = biasBearOK ? 100.0 : 0.0
+
+structBullScore = math.min(100.0, (extTrend == 1 ? 45.0 : 0.0) + (intTrend == 1 ? 25.0 : 0.0) + (extCHoCHbull ? 15.0 : 0.0) + (intCHoCHbull ? 5.0 : 0.0))
+structBearScore = math.min(100.0, (extTrend == -1 ? 45.0 : 0.0) + (intTrend == -1 ? 25.0 : 0.0) + (extCHoCHbear ? 15.0 : 0.0) + (intCHoCHbear ? 5.0 : 0.0))
+
+// Liquidity
+rangeSizePre = high - low
+liquidityVoid = atrVal > 0 and rangeSizePre > atrVal * voidATRMult
+lowerWickPre = math.min(close, open) - low
+upperWickPre = high - math.max(close, open)
+bodySizePre = math.abs(close - open)
+
+sweepBull = confirmedBar and low <= low[1] and close > low[1]
+sweepBear = confirmedBar and high >= high[1] and close < high[1]
+
+var int barsSinceSweepBull = 999
+var int barsSinceSweepBear = 999
+barsSinceSweepBull := sweepBull ? 0 : barsSinceSweepBull + 1
+barsSinceSweepBear := sweepBear ? 0 : barsSinceSweepBear + 1
+sweepBullRecent = barsSinceSweepBull <= sweepLookback
+sweepBearRecent = barsSinceSweepBear <= sweepLookback
+liquidityBullScore = math.min(100.0, (sweepBullRecent ? 75.0 : 0.0))
+liquidityBearScore = math.min(100.0, (sweepBearRecent ? 75.0 : 0.0))
+
+// OB / FVG
+var int bullStage = 0
+var int bullStageBar = 0
+var int bearStage = 0
+var int bearStageBar = 0
+
+bullStageAdvance = confirmedBar and biasBullOK
+bearStageAdvance = confirmedBar and biasBearOK
+
+if bullStage == 0 and bullStageAdvance
+    bullStage := 1
+    bullStageBar := bar_index
+if bullStage == 1 and confirmedBar and sweepBull
+    bullStage := 2
+    bullStageBar := bar_index
+if bullStage == 2 and confirmedBar and (extCHoCHbull or intCHoCHbull)
+    bullStage := 3
+    bullStageBar := bar_index
+if bullStage == 3 and confirmedBar and (intBOSbull or extBOSbull)
+    bullStage := 4
+    bullStageBar := bar_index
+if bullStage == 4 and confirmedBar and (close > open)
+    bullStage := 5
+    bullStageBar := bar_index
+if bullStage == 5 and confirmedBar and (close > open)
+    bullStage := 6
+    bullStageBar := bar_index
+if bullStage == 6 and confirmedBar and (close > open)
+    bullStage := 7
+    bullStageBar := bar_index
+if bullStage == 7 and confirmedBar and (close > open)
+    bullStage := 8
+    bullStageBar := bar_index
+if bullStage == 8 and confirmedBar and not (liquidityVoid)
+    bullStage := 9
+    bullStageBar := bar_index
+if bullStage == 9 and confirmedBar and (riskValidBull := not extremeATR and not abnormalExpansion and not lowATR)
+    bullStage := 10
+    bullStageBar := bar_index
+
+if bearStage == 0 and bearStageAdvance
+    bearStage := 1
+    bearStageBar := bar_index
+if bearStage == 1 and confirmedBar and sweepBear
+    bearStage := 2
+    bearStageBar := bar_index
+if bearStage == 2 and confirmedBar and (extCHoCHbear or intCHoCHbear)
+    bearStage := 3
+    bearStageBar := bar_index
+if bearStage == 3 and confirmedBar and (intBOSbear or extBOSbear)
+    bearStage := 4
+    bearStageBar := bar_index
+if bearStage == 4 and confirmedBar and (close < open)
+    bearStage := 5
+    bearStageBar := bar_index
+if bearStage == 5 and confirmedBar and (close < open)
+    bearStage := 6
+    bearStageBar := bar_index
+if bearStage == 6 and confirmedBar and (close < open)
+    bearStage := 7
+    bearStageBar := bar_index
+if bearStage == 7 and confirmedBar and (close < open)
+    bearStage := 8
+    bearStageBar := bar_index
+if bearStage == 8 and confirmedBar and not (liquidityVoid)
+    bearStage := 9
+    bearStageBar := bar_index
+if bearStage == 9 and confirmedBar and (riskValidBear := not extremeATR and not abnormalExpansion and not lowATR)
+    bearStage := 10
+    bearStageBar := bar_index
+
+var int lastSignalBar = -999
+canFire = (bar_index - lastSignalBar) >= signalCooldown
+
+bullConfidence = 50.0 + (bullStage / 10.0) * 40.0
+bearConfidence = 50.0 + (bearStage / 10.0) * 40.0
+
+rawBuySignal  = bullStage == 10 and bullConfidence >= confidenceFloor and canFire and confirmedBar
+rawSellSignal = bearStage == 10 and bearConfidence >= confidenceFloor and canFire and confirmedBar
+
+// Risk management
+var float activeEntry = na
+var float activeSL = na
+var float activeTP1 = na
+var int activeDir = 0
+var bool tp1Hit = false
+
+if confirmedBar and activeDir == 0 and rawBuySignal
+    activeEntry := close
+    activeSL := close - atrVal * atrSLMult
+    activeTP1 := close + (close - activeSL) * tp1R
+    activeDir := 1
+    lastSignalBar := bar_index
+    strategy.entry("Long", strategy.long)
+
+if confirmedBar and activeDir == 0 and rawSellSignal
+    activeEntry := close
+    activeSL := close + atrVal * atrSLMult
+    activeTP1 := close - (activeSL - close) * tp1R
+    activeDir := -1
+    lastSignalBar := bar_index
+    strategy.entry("Short", strategy.short)
+
+if activeDir == 1 and low <= activeSL
+    strategy.close("Long")
+    activeDir := 0
+
+if activeDir == -1 and high >= activeSL
+    strategy.close("Short")
+    activeDir := 0
+
+plotshape(rawBuySignal, title="BUY", style=shape.triangleup, location=location.belowbar, color=color.green)
+plotshape(rawSellSignal, title="SELL", style=shape.triangledown, location=location.abovebar, color=color.red)

@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOP v2.0 Maximum Confluence Dashboard</title>
+    <style>
+        :root {
+            --bg-main: #0b0f19;
+            --bg-card: #151d30;
+            --bg-accent: #1e2942;
+            --border-color: #263554;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --color-bullish: #00e676;
+            --color-bearish: #ff3d00;
+            --color-warning: #ffb300;
+            --font-mono: 'Courier New', Courier, monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            padding: 20px;
+            line-height: 1.5;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 25px;
+        }
+
+        .logo-area h1 {
+            font-size: 24px;
+            letter-spacing: 0.5px;
+        }
+
+        .logo-area p {
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+
+        .btn-scan {
+            background: linear-gradient(135deg, #2979ff, #0747a6);
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-scan:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(41, 121, 255, 0.3);
+        }
+
+        .grid-layout {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 1024px) {
+            .grid-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--bg-accent);
+            padding-bottom: 10px;
+        }
+
+        .signal-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 15px;
+        }
+
+        .sig-card {
+            background-color: var(--bg-accent);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .sig-card.LONG { border-left: 4px solid var(--color-bullish); }
+        .sig-card.SHORT { border-left: 4px solid var(--color-bearish); }
+        .sig-card.BLACKLIST { border-left: 4px solid var(--color-warning); opacity: 0.6; }
+
+        .sig-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .sig-pair {
+            font-weight: 700;
+            font-size: 16px;
+        }
+
+        .sig-badge {
+            font-size: 11px;
+            font-weight: 800;
+            padding: 2px 8px;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+
+        .LONG .sig-badge { background-color: rgba(0, 230, 118, 0.15); color: var(--color-bullish); }
+        .SHORT .sig-badge { background-color: rgba(255, 61, 0, 0.15); color: var(--color-bearish); }
+        .BLACKLIST .sig-badge { background-color: rgba(255, 179, 0, 0.15); color: var(--color-warning); }
+
+        .score-box {
+            font-family: var(--font-mono);
+            font-size: 13px;
+            margin-bottom: 12px;
+            background: var(--bg-main);
+            padding: 6px 10px;
+            border-radius: 4px;
+        }
+
+        .levels-box {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            font-size: 12px;
+            margin-top: 10px;
+            border-top: 1px solid rgba(255,255,255,0.05);
+            padding-top: 10px;
+        }
+
+        .level-item span {
+            color: var(--text-secondary);
+            display: block;
+            font-size: 10px;
+            text-transform: uppercase;
+        }
+
+        .level-item p {
+            font-family: var(--font-mono);
+            font-weight: 600;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        th {
+            text-align: left;
+            padding: 10px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        td {
+            padding: 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+        }
+
+        .checklist-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+
+        .checklist-item.checked { color: var(--color-bullish); }
+        .checklist-item.unchecked { color: var(--text-secondary); text-decoration: line-through; opacity: 0.5; }
+
+        /* Calculator Styles */
+        .calc-group {
+            margin-bottom: 12px;
+        }
+        .calc-group label {
+            display: block;
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+        .calc-group input {
+            width: 100%;
+            padding: 8px;
+            background-color: var(--bg-main);
+            border: 1px solid var(--border-color);
+            color: white;
+            border-radius: 4px;
+        }
+        .calc-result {
+            background-color: var(--bg-accent);
+            padding: 12px;
+            border-radius: 4px;
+            text-align: center;
+            font-family: var(--font-mono);
+            font-weight: 700;
+            color: var(--color-bullish);
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo-area">
+            <h1>GRID CONFLUENCE TERMINAL v2.0</h1>
+            <p>SOP Maximum Confluence System Engaged · Real-time Simulation Engine</p>
+        </div>
+        <div>
+            <button class="btn-scan" onclick="simulateMarketScan()">GENERATE NEW LIVE SIGNALS</button>
+        </div>
+    </header>
+
+    <div class="grid-layout">
+        <!-- Main Column -->
+        <main>
+            <!-- Active Signals Section -->
+            <div class="card">
+                <div class="card-title">
+                    <span>📢 ACTIVE TRADE SIGNALS (Min 5/7 Confluence Verified)</span>
+                </div>
+                <div class="signal-container" id="signalsGrid">
+                    <!-- Dynamic Signals Inject Here -->
+                </div>
+            </div>
+
+            <!-- Full Checklist Matrix -->
+            <div class="card">
+                <div class="card-title">🔍 REAL-TIME MONITORING MATRIX (ALL WATCHED PAIRS)</div>
+                <div style="overflow-x: auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Asset Pair</th>
+                                <th>Trend State (W/D/4H)</th>
+                                <th>RSI (14)</th>
+                                <th>Vol vs MA20</th>
+                                <th>Score</th>
+                                <th>Status Rule</th>
+                            </tr>
+                        </thead>
+                        <tbody id="matrixTableBody">
+                            <!-- Dynamic Matrix Inject Here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+
+        <!-- Sidebar Components -->
+        <aside>
+            <!-- Position Sizing Calculator Component -->
+            <div class="card">
+                <div class="card-title">🧮 POSITION SIZING CALCULATOR</div>
+                <div class="calc-group">
+                    <label>Account Balance (USD)</label>
+                    <input type="number" id="calcBalance" value="10000" oninput="calculateLot()">
+                </div>
+                <div class="calc-group">
+                    <label>Risk Percentage (%)</label>
+                    <input type="number" id="calcRisk" value="1" step="0.1" oninput="calculateLot()">
+                </div>
+                <div class="calc-group">
+                    <label>Stop Loss (Pips/Ticks)</label>
+                    <input type="number" id="calcSL" value="45" oninput="calculateLot()">
+                </div>
+                <div class="calc-group">
+                    <label>Pip Value per Standard Lot ($)</label>
+                    <input type="number" id="calcPipVal" value="10" oninput="calculateLot()">
+                </div>
+                <div class="calc-result" id="calcResultBox">
+                    RECOMMENDED LOT: 0.22
+                </div>
+            </div>
+
+            <!-- Daily Routine Check-In -->
+            <div class="card">
+                <div class="card-title">📅 DAILY ROUTINE TRACKER</div>
+                <label class="checklist-item"><input type="checkbox" checked> 06:00 - Semak Macro & Major S/R</label>
+                <label class="checklist-item"><input type="checkbox" checked> 06:15 - Analisis Struktur Market 4H</label>
+                <label class="checklist-item"><input type="checkbox"> 06:30 - Semak Economic Calendar (News)</label>
+                <label class="checklist-item"><input type="checkbox"> Sesi Trading - Set alert, No Overtrade</label>
+                <label class="checklist-item"><input type="checkbox"> End Sesi - Kemaskini Screenshot & Jurnal</label>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Mocking Data base to rigorously calculate against user's strict 7-Point SOP Rules
+        const targetPairs = ['EURUSD', 'GBPUSD', 'AUDUSD', 'USDJPY', 'XAUUSD', 'BTCUSD', 'ETHUSD'];
+
+        function generateMockTechnicalData(pair) {
+            // Randomizer engineered to yield realistic combinations, pushing some into high confluence or blacklist conditions
+            const rsi = Math.floor(Math.random() * (75 - 25 + 1)) + 25;
+            const ema200 = Math.random() > 0.4; // true if price above EMA200
+            const goldenCross = Math.random() > 0.4; 
+            const aboveIchimoku = Math.random() > 0.5;
+            const macdCross = Math.random() > 0.4;
+            const bbPosition = Math.random() > 0.3; // true if close above mid/upper band
+            const volumeMultiplier = parseFloat((Math.random() * (2.2 - 0.5) + 0.5).toFixed(2));
+            
+            // Blacklist factors
+            const hasDivergence = Math.random() < 0.12; 
+            const atrRatio = parseFloat((Math.random() * (2.5 - 0.5) + 0.5).toFixed(2)); // > 2.0 triggers excessive volatility blacklist
+            const upcomingNews = Math.random() < 0.08;
+
+            return { pair, rsi, ema200, goldenCross, aboveIchimoku, macdCross, bbPosition, volumeMultiplier, hasDivergence, atrRatio, upcomingNews };
+        }
+
+        function runSOPv2Engine(data) {
+            let longScore = 0;
+            let shortScore = 0;
+            
+            let longChecklist = [];
+            let shortChecklist = [];
+
+            // --- LONG SCORE CALCULATION ---
+            if (data.ema200) { longScore++; longChecklist.push("Weekly/Daily Bullish & > EMA200"); } else { longChecklist.push("FAIL: Di bawah EMA200"); }
+            if (data.goldenCross) { longScore++; longChecklist.push("EMA 50 > EMA 200 (Golden Cross Aktif)"); } else { longChecklist.push("FAIL: Death Cross Aktif"); }
+            if (data.aboveIchimoku) { longScore++; longChecklist.push("Harga di atas Ichimoku Cloud (4H)"); } else { longChecklist.push("FAIL: Di dalam/bawah Cloud"); }
+            if (data.rsi >= 45 && data.rsi <= 65) { longScore++; longChecklist.push(RSI Ideal (${data.rsi}) — Ruang naik sedia ada); } else { longChecklist.push(FAIL: RSI (${data.rsi}) di luar parameter 45-65); }
+            if (data.macdCross) { longScore++; longChecklist.push("MACD Bullish Cross + Histogram Positif"); } else { longChecklist.push("FAIL: MACD Bearish Momentum"); }
+            if (data.bbPosition) { longScore++; longChecklist.push("Candle close di atas Mid/Upper Bollinger Band"); } else { longChecklist.push("FAIL: Close bawah Mid BB"); }
+            if (data.volumeMultiplier >= 1.5) { longScore++; longChecklist.push(Volume Lonjakan Semasa (${data.volumeMultiplier}x > MA20)); } else { longChecklist.push(FAIL: Volume Lemah (${data.volumeMultiplier}x)); }
+
+            // --- SHORT SCORE CALCULATION ---
+            if (!data.ema200) { shortScore++; shortChecklist.push("Weekly/Daily Bearish & < EMA200"); } else { shortChecklist.push("FAIL: Di atas EMA200"); }
+            if (!data.goldenCross) { shortScore++; shortChecklist.push("EMA 50 < EMA 200 (Death Cross Aktif)"); } else { shortChecklist.push("FAIL: Golden Cross Aktif"); }
+            if (!data.aboveIchimoku) { shortScore++; shortChecklist.push("Harga di bawah Ichimoku Cloud (4H)"); } else { shortChecklist.push("FAIL: Di atas/dalam Cloud"); }
+            if (data.rsi >= 35 && data.rsi <= 55) { shortScore++; shortChecklist.push(RSI Ideal (${data.rsi}) — Ruang turun sedia ada); } else { shortChecklist.push(FAIL: RSI (${data.rsi}) di luar parameter 35-55); }
+            if (!data.macdCross) { shortScore++; shortChecklist.push("MACD Bearish Cross + Histogram Negatif"); } else { shortChecklist.push("FAIL: MACD Bullish Momentum"); }
+            if (!data.bbPosition) { shortScore++; shortChecklist.push("Candle close di bawah Mid/Lower Bollinger Band"); } else { shortChecklist.push("FAIL: Close atas Mid BB"); }
+            if (data.volumeMultiplier >= 1.5) { shortScore++; shortChecklist.push(Volume Lonjakan Semasa (${data.volumeMultiplier}x > MA20)); } else { shortChecklist.push(FAIL: Volume Lemah (${data.volumeMultiplier}x)); }
+
+            // Evaluate Blacklist rules immediately
+            let isBlacklisted = false;
+            let blacklistReason = "";
+            if (data.hasDivergence) { isBlacklisted = true; blacklistReason = "RSI Counter-Trend Divergence"; }
+            if (data.atrRatio > 2.0) { isBlacklisted = true; blacklistReason = Volatiliti Melampau (ATR ${data.atrRatio}x > Purata); }
+            if (data.upcomingNews) { isBlacklisted = true; blacklistReason = "Major High-Impact News Hadapan (< 4H)"; }
+
+            let structuralPrice = data.pair.includes('XAU') ? 2450.00 : (data.pair.includes('BTC') ? 92500 : 1.1250);
+            let atrValue = data.pair.includes('XAU') ? 14.5 : (data.pair.includes('BTC') ? 1200 : 0.0035);
+
+            return {
+                pair: data.pair,
+                currentPrice: structuralPrice,
+                atr: atrValue,
+                longScore,
+                shortScore,
+                longChecklist,
+                shortChecklist,
+                isBlacklisted,
+                blacklistReason
+            };
+        }
+
+        function simulateMarketScan() {
+            const grid = document.getElementById('signalsGrid');
+            const tableBody = document.getElementById('matrixTableBody');
+            
+            grid.innerHTML = "";
+            tableBody.innerHTML = "";
+
+            let activeSignalCount = 0;
+
+            targetPairs.forEach(pair => {
+                const rawTech = generateMockTechnicalData(pair);
+                const evaluation = runSOPv2Engine(rawTech);
+
+                // Determine final structural output
+                let finalState = "NEUTRAL";
+                let finalScore = 0;
+                let activeChecklist = [];
+
+                if (evaluation.isBlacklisted) {
+                    finalState = "BLACKLIST";
+                } else if (evaluation.longScore >= 5) {
+                    finalState = "LONG";
+                    finalScore = evaluation.longScore;
+                    activeChecklist = evaluation.longChecklist;
+                } else if (evaluation.shortScore >= 5) {
+                    finalState = "SHORT";
+                    finalScore = evaluation.shortScore;
+                    activeChecklist = evaluation.shortChecklist;
+                }
+
+                // Append inside monitoring table matrix 
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="font-weight:700;">${evaluation.pair}</td>
+                    <td>${rawTech.ema200 ? '🟢 Above EMA200' : '🔴 Below EMA200'} · ${rawTech.aboveIchimoku ? 'Cloud Up' : 'Cloud Dn'}</td>
+                    <td>${rawTech.rsi}</td>
+                    <td>${rawTech.volumeMultiplier}x</td>
+                    <td style="font-family:var(--font-mono); font-weight:700;">L:${evaluation.longScore} | S:${evaluation.shortScore}</td>
+                    <td><span class="sig-badge" style="background-color:rgba(255,255,255,0.05); color:white;">${finalState === "BLACKLIST" ? '⚠️ BLACKLISTED' : finalState}</span></td>
+                `;
+                tableBody.appendChild(tr);
+
+                // Inject into prominent Signal Grid Cards only if parameters align to SOP rules
+                if (finalState === "LONG" || finalState === "SHORT" || finalState === "BLACKLIST") {
+                    activeSignalCount++;
+                    
+                    let slPrice, tp1, tp2, tp3;
+                    if (finalState === "LONG") {
+                        slPrice = evaluation.currentPrice - (evaluation.atr * 1.5);
+                        let riskPips = evaluation.currentPrice - slPrice;
+                        tp1 = evaluation.currentPrice + (riskPips * 1.5);
+                        tp2 = evaluation.currentPrice + (riskPips * 2.5);
+                        tp3 = evaluation.currentPrice + (riskPips * 4.0);
+                    } else if (finalState === "SHORT") {
+                        slPrice = evaluation.currentPrice + (evaluation.atr * 1.5);
+                        let riskPips = slPrice - evaluation.currentPrice;
+                        tp1 = evaluation.currentPrice - (riskPips * 1.5);
+                        tp2 = evaluation.currentPrice - (riskPips * 2.5);
+                        tp3 = evaluation.currentPrice - (riskPips * 4.0);
+                    }
+
+                    const card = document.createElement('div');
+                    card.className = sig-card ${finalState};
+                    
+                    let checklistHTML = activeChecklist.map(item => {
+                        const isFail = item.startsWith("FAIL");
+                        return `<div class="checklist-item ${isFail ? 'unchecked' : 'checked'}">
+                            ${isFail ? '❌' : '✅'} ${item}
+                        </div>`;
+                    }).join('');
+
+                    if (finalState === "BLACKLIST") {
+                        card.innerHTML = `
+                            <div class="sig-header">
+                                <span class="sig-pair">${evaluation.pair}</span>
+                                <span class="sig-badge">⚠️ BLOCKED</span>
+                            </div>
+                            <div class="score-box" style="color:var(--color-warning);">
+                                REASON: ${evaluation.blacklistReason}
+                            </div>
+                            <p style="font-size:12px; color:var(--text-secondary);">SOP Blocklist protection mechanism dynamically applied to protect trading capital.</p>
+                        `;
+                    } else {
+                        card.innerHTML = `
+                            <div class="sig-header">
+                                <span class="sig-pair">${evaluation.pair}</span>
+                                <span class="sig-badge">${finalState} ENTRY</span>
+                            </div>
+                            <div class="score-box">
+                                Confluence Score: <strong>${finalScore}/7 Matched</strong>
+                            </div>
+                            <div style="margin-bottom:10px;">
+                                ${checklistHTML}
+                            </div>
+                            <div class="levels-box">
+                                <div class="level-item"><span>Entry Price</span><p>${evaluation.currentPrice.toLocaleString()}</p></div>
+                                <div class="level-item"><span style="color:var(--color-bearish)">Dynamic SL (1.5x ATR)</span><p style="color:var(--color-bearish)">${slPrice.toLocaleString()}</p></div>
+                                <div class="level-item"><span style="color:var(--color-bullish)">TP1 (1:1.5 RR -> SL BE)</span><p>${tp1.toLocaleString()}</p></div>
+                                <div class="level-item"><span style="color:var(--color-bullish)">TP2 (1:2.5 RR)</span><p>${tp2.toLocaleString()}</p></div>
+                                <div class="level-item" style="grid-column: span 2; margin-top:4px;"><span style="color:var(--color-warning)">TP3 (1:4.0+ Trailing Stop via EMA21)</span><p>${tp3.toLocaleString()}</p></div>
+                            </div>
+                        `;
+                    }
+                    grid.appendChild(card);
+                }
+            });
+
+            if (activeSignalCount === 0) {
+                grid.innerHTML = `<div style="grid-column: 1/-1; text-align:center; padding:40px; color:var(--text-secondary);">
+                    No system matches found meeting minimum 5/7 Confluence criteria. Standing by...
+                </div>`;
+            }
+        }
+
+        function calculateLot() {
+            const balance = parseFloat(document.getElementById('calcBalance').value) || 0;
+            const riskPct = parseFloat(document.getElementById('calcRisk').value) || 0;
+            const slPips = parseFloat(document.getElementById('calcSL').value) || 1;
+            const pipVal = parseFloat(document.getElementById('calcPipVal').value) || 1;
+
+            // Lot Size Formula = (Modal * Risk%) / (SL dalam pips * Nilai pip)
+            const cashRisk = balance * (riskPct / 100);
+            const lotSize = cashRisk / (slPips * pipVal);
+
+            document.getElementById('calcResultBox').textContent = RECOMMENDED LOT: ${lotSize.toFixed(2)};
+        }
+
+        // Initialize display rules on startup
+        window.onload = function() {
+            simulateMarketScan();
+            calculateLot();
+        };
+    </script>
+</body>
+</html>
