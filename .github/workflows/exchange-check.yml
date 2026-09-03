@@ -1,0 +1,47 @@
+name: Exchange connectivity check
+
+# Runs the real-exchange smoke test from a GitHub runner (which has internet
+# access): Binance testnet + live market data (read-only, no API keys),
+# WebSocket stream, one screening cycle and a backtest on live history.
+#
+# Triggered manually (Actions tab → "Exchange connectivity check" → Run workflow)
+# or automatically once a day. Note: GitHub runners are US-hosted, so Binance
+# may answer HTTP 451 – in that case the report says so explicitly.
+
+on:
+  workflow_dispatch:
+    inputs:
+      backtest_days:
+        description: "Backtest window in days"
+        default: "60"
+        required: false
+  schedule:
+    - cron: "17 3 * * *"
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Run smoke test against Binance
+        env:
+          BACKTEST_DAYS: ${{ github.event.inputs.backtest_days || '60' }}
+        run: |
+          chmod +x scripts/*.sh
+          ./scripts/smoke_local.sh 2>&1 | tee smoke.log || true
+          echo "## Exchange smoke report" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          sed -n '/===== REPORT =====/,/===== END REPORT =====/p' smoke.log >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload full log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-log
+          path: smoke.log
+          retention-days: 14
