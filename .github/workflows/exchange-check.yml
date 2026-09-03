@@ -17,6 +17,12 @@ on:
         required: false
   schedule:
     - cron: "17 3 * * *"
+  push:
+    paths:
+      - ".github/workflows/exchange-check.yml"
+      - "scripts/smoke_local.sh"
+      - "backend/data_collector.py"
+      - "backend/requirements*.txt"
 
 jobs:
   smoke:
