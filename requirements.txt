@@ -1,0 +1,5 @@
+# Convenience: install backend + frontend + dev tools in one go
+-r backend/requirements.txt
+-r frontend/requirements.txt
+pytest==8.3.4
+pytest-asyncio==0.24.0

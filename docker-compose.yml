@@ -1,0 +1,91 @@
+# Crypto Trading Signal Bot – production stack
+#
+#   cp .env.example .env   # fill in your keys
+#   docker compose up -d --build
+#   docker compose logs -f backend
+#
+# Services
+#   postgres  – PostgreSQL 15 (signal history, statistics)
+#   backend   – 24/7 signal bot + REST API   → http://<host>:8000
+#   dashboard – Streamlit dashboard          → http://<host>:8501
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: crypto_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-crypto_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-crypto_password_123}
+      POSTGRES_DB: ${POSTGRES_DB:-crypto_signals}
+      TZ: UTC
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # Only expose PostgreSQL on localhost of the host machine (never to the internet)
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-crypto_user} -d ${POSTGRES_DB:-crypto_signals}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  backend:
+    build: ./backend
+    image: crypto-signal-backend:latest
+    container_name: crypto_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-crypto_user}:${POSTGRES_PASSWORD:-crypto_password_123}@postgres:5432/${POSTGRES_DB:-crypto_signals}
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      TZ: UTC
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 60s
+      timeout: 10s
+      start_period: 90s
+      retries: 5
+    logging:
+      driver: json-file
+      options: { max-size: "20m", max-file: "5" }
+
+  dashboard:
+    build: ./frontend
+    image: crypto-signal-dashboard:latest
+    container_name: crypto_dashboard
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-crypto_user}:${POSTGRES_PASSWORD:-crypto_password_123}@postgres:5432/${POSTGRES_DB:-crypto_signals}
+      API_URL: http://backend:8000
+      DASHBOARD_REFRESH_SECONDS: ${DASHBOARD_REFRESH_SECONDS:-60}
+      TZ: UTC
+    ports:
+      - "8501:8501"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8501/_stcore/health"]
+      interval: 60s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+volumes:
+  postgres_data:

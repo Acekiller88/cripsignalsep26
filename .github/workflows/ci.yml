@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: crypto_user
+          POSTGRES_PASSWORD: crypto_password_123
+          POSTGRES_DB: crypto_signals_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U crypto_user -d crypto_signals_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r backend/requirements-dev.txt
+      - name: Unit tests (SQLite)
+        working-directory: backend
+        run: python -m pytest
+      - name: Integration tests (PostgreSQL)
+        working-directory: backend
+        env:
+          TEST_DATABASE_URL: postgresql://crypto_user:crypto_password_123@localhost:5432/crypto_signals_test
+        run: python -m pytest tests/test_monitor_and_performance.py tests/test_bot_and_api.py
+      - name: Offline end-to-end cycle
+        working-directory: backend
+        env:
+          DATABASE_URL: sqlite:///ci.db
+          DATA_SOURCE: synthetic
+        run: |
+          python main.py --check
+          python main.py --once > /dev/null
+          python backtest.py --days 20 --symbols BTCUSDT,ETHUSDT | tail -25
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build backend image
+        uses: docker/build-push-action@v6
+        with: { context: backend, push: false, tags: crypto-signal-backend:ci }
+      - name: Build dashboard image
+        uses: docker/build-push-action@v6
+        with: { context: frontend, push: false, tags: crypto-signal-dashboard:ci }
