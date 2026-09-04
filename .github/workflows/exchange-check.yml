@@ -37,13 +37,30 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
+      - name: Endpoint reachability probe (from this runner's region)
+        run: |
+          {
+            echo "===== PROBE ====="
+            echo "runner ip: $(curl -s -m 5 https://ipinfo.io/json | tr -d '\n' | cut -c1-160)"
+            for u in https://fapi.binance.com/fapi/v1/time https://testnet.binancefuture.com/fapi/v1/time \
+                     https://api.binance.com/api/v3/time https://data-api.binance.vision/api/v3/time \
+                     https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT\&interval=15m\&limit=1 \
+                     https://api.telegram.org/bot000:invalid/getMe; do
+              code=$(curl -s -o /dev/null -m 15 -w '%{http_code}' "$u" || echo ERR)
+              echo "http $code  $u"
+            done
+            for h in aws-0-ap-southeast-1.pooler.supabase.com:5432 aws-1-ap-southeast-1.pooler.supabase.com:5432 aws-0-ap-southeast-1.pooler.supabase.com:6543; do
+              (timeout 8 bash -c "exec 3<>/dev/tcp/${h%%:*}/${h##*:}" 2>/dev/null && echo "tcp open  $h") || echo "tcp CLOSED $h"
+            done
+            echo "===== END PROBE ====="
+          } | tee probe.txt
       - name: Run smoke test against Binance
         env:
           BACKTEST_DAYS: ${{ github.event.inputs.backtest_days || '60' }}
         run: |
           chmod +x scripts/*.sh
           ./scripts/smoke_local.sh 2>&1 | tee smoke.log || true
-          sed -n '/===== REPORT =====/,/===== END REPORT =====/p' smoke.log > report.txt
+          { cat probe.txt; sed -n '/===== REPORT =====/,/===== END REPORT =====/p' smoke.log; } > report.txt
           echo "## Exchange smoke report" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           cat report.txt >> "$GITHUB_STEP_SUMMARY"
