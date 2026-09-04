@@ -269,6 +269,9 @@ class BotStatus(Base):
     data_source = Column(String(20))
     websocket_connected = Column(Boolean, default=False)
     version = Column(String(20))
+    # Telegram destinations discovered at runtime (survive container restarts)
+    telegram_channel_id = Column(String(32))
+    telegram_admin_chat_id = Column(String(32))
 
     def to_dict(self) -> dict:
         out = {}

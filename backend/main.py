@@ -354,14 +354,25 @@ async def _check(cfg: Settings) -> int:
         await collector.close()
 
     # Telegram
-    notifier = TelegramNotifier(cfg)
+    stored = {}
+    try:
+        database = Database(cfg.database_url)
+        with database.session() as session:
+            row = database.get_or_create_status(session)
+            stored = {"channel_id": row.telegram_channel_id, "admin_chat_id": row.telegram_admin_chat_id}
+        database.dispose()
+    except Exception:
+        pass
+    notifier = TelegramNotifier(cfg, **stored)
     if notifier.enabled:
         ok, info = await notifier.test_connection()
         print(f"  telegram        : {'OK' if ok else 'FAIL'} — {info}")
-        if ok:
+        if ok and notifier.channel_id:
             mid = await notifier.send_text("✅ Crypto Signal Bot self-test: Telegram connection works", disable_notification=True)
-            print(f"  telegram send   : {'OK' if mid else 'FAIL'} (message id {mid})")
+            print(f"  telegram send   : {'OK' if mid else 'FAIL'} (message id {mid}, chat {notifier.channel_id})")
             ok = ok and mid is not None
+        elif ok:
+            print(f"  telegram send   : SKIPPED — {notifier.discovery_hint}")
         ok_all &= ok
     else:
         print("  telegram        : not configured (skipped)")

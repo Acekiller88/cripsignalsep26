@@ -44,7 +44,7 @@ if [[ -f .env ]]; then
   getv() { grep -E "^$1=" .env | tail -1 | cut -d= -f2- | tr -d '"' | tr -d "'" ; }
   TG_TOKEN="$(getv TELEGRAM_BOT_TOKEN)"; TG_CHAT="$(getv TELEGRAM_CHANNEL_ID)"
   TESTNET="$(getv BINANCE_TESTNET)"; SRC="$(getv DATA_SOURCE)"; PGPASS="$(getv POSTGRES_PASSWORD)"
-  [[ -n "$TG_TOKEN" && -n "$TG_CHAT" ]] && ok "telegram configured (chat ${TG_CHAT})" || warn "telegram NOT configured (bot runs, messages only logged)"
+  if [[ -n "$TG_TOKEN" ]]; then ok "telegram token configured$([[ -n "$TG_CHAT" ]] && echo " (channel ${TG_CHAT})" || echo " (channel auto-discovery)")"; else warn "telegram NOT configured (bot runs, messages only logged)"; fi
   [[ "${SRC:-binance}" == "binance" ]] && ok "DATA_SOURCE=binance" || warn "DATA_SOURCE=${SRC} (synthetic = demo data, not real market)"
   [[ "${TESTNET:-true}" == "true" ]] && ok "BINANCE_TESTNET=true (paper mode)" || warn "BINANCE_TESTNET=false (LIVE market data)"
   [[ "$PGPASS" == "crypto_password_123" || -z "$PGPASS" ]] && warn "POSTGRES_PASSWORD is the default – change it" || ok "POSTGRES_PASSWORD customised"
@@ -75,6 +75,7 @@ if [[ -n "$STATUS" ]]; then
   CYCLES="$(g live.cycles_completed)"; SRC_LIVE="$(g live.data_source.source)"; WS="$(g live.data_source.websocket_connected)"
   ENDPOINT="$(g live.data_source.endpoint)"; RESTFAIL="$(g live.data_source.rest_failures)"; LASTERR="$(g live.last_error)"
   TG_SENT="$(g live.telegram.sent)"; TG_FAIL="$(g live.telegram.failed)"; TG_ERR="$(g live.telegram.last_error)"
+  TG_READY="$(g live.telegram.ready)"; TG_CHAN="$(g live.telegram.channel_id)"; TG_HINT="$(g live.telegram.hint)"
   UNSUP="$(g live.data_source.unsupported_symbols)"
   ACTIVE="$(g active_signals)"; TOTAL="$(g total_signals)"
   [[ "${CYCLES:-0}" -ge 1 ]] 2>/dev/null && ok "bot cycles completed: $CYCLES (source=$SRC_LIVE endpoint=$ENDPOINT)" || warn "no screening cycle completed yet (wait ~1 min after start)"
@@ -83,7 +84,9 @@ if [[ -n "$STATUS" ]]; then
   [[ -z "$LASTERR" ]] && ok "no bot errors" || warn "last bot error: $LASTERR"
   [[ -z "$UNSUP" || "$UNSUP" == "[]" ]] || warn "symbols not listed on this endpoint (skipped): $UNSUP"
   if [[ -n "${TG_TOKEN:-}" ]]; then
-    [[ -z "$TG_FAIL" || "$TG_FAIL" == "0" ]] && ok "telegram: ${TG_SENT:-0} sent, 0 failed" || bad "telegram failures: $TG_FAIL ($TG_ERR)"
+    if [[ "$TG_READY" == "True" ]]; then
+      [[ -z "$TG_FAIL" || "$TG_FAIL" == "0" ]] && ok "telegram: channel ${TG_CHAN}, ${TG_SENT:-0} sent, 0 failed" || bad "telegram failures: $TG_FAIL ($TG_ERR)"
+    else warn "telegram: no channel yet – ${TG_HINT:-add the bot as administrator of your channel}"; fi
   fi
   LINES+=("INFO  signals: total=$TOTAL active=$ACTIVE")
   LINES+=("INFO  bot status:"$'\n'"$(echo "$STATUS" | python3 scripts/report_lib.py status)")

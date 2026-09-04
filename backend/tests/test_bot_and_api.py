@@ -313,3 +313,118 @@ def test_telegram_notifier_sends_with_mocked_bot(settings):
         assert ok and "signal_bot" in info
     finally:
         tb.asyncio.sleep = orig_sleep
+
+
+# ---------------------------------------------------------------------------
+# Telegram destination auto-discovery
+# ---------------------------------------------------------------------------
+class _Chat:
+    def __init__(self, id, type, title=None, username=None, first_name=None):
+        self.id, self.type, self.title, self.username, self.first_name = id, type, title, username, first_name
+
+
+class _Upd:
+    def __init__(self, update_id, message=None, channel_post=None, my_chat_member=None):
+        self.update_id, self.message, self.channel_post, self.my_chat_member = update_id, message, channel_post, my_chat_member
+
+
+class _Msg:
+    def __init__(self, chat):
+        self.chat = chat
+
+
+class _MemberUpd:
+    def __init__(self, chat, status):
+        self.chat = chat
+        self.new_chat_member = type("M", (), {"status": status})()
+
+
+class _DiscoveryBot:
+    def __init__(self, updates):
+        self.updates = updates
+        self.sent = []
+        self.offsets = []
+
+    async def get_updates(self, offset=None, **kw):
+        self.offsets.append(offset)
+        return [u for u in self.updates if offset is None or u.update_id >= offset]
+
+    async def send_message(self, **kw):
+        self.sent.append(kw)
+        return type("R", (), {"message_id": len(self.sent)})()
+
+    async def get_me(self):
+        return type("Me", (), {"username": "my_signal_bot", "id": 1})()
+
+    async def shutdown(self):
+        pass
+
+
+def test_telegram_discovers_channel_and_admin_chat(settings):
+    """Token only: the channel where the bot became admin and the owner's DM are discovered and persisted."""
+    persisted = []
+    cfg = settings.with_overrides(telegram_bot_token="123:abc", telegram_channel_id="")
+    n = TelegramNotifier(cfg, persist_callback=lambda c, a: persisted.append((c, a)))
+    assert n.enabled and not n.ready and n.channel_id is None
+    n.bot = _DiscoveryBot([
+        _Upd(10, message=_Msg(_Chat(555, "private", username="owner"))),                    # owner pressed /start
+        _Upd(11, my_chat_member=_MemberUpd(_Chat(-1001234, "channel", title="Signals"), "administrator")),
+        _Upd(12, my_chat_member=_MemberUpd(_Chat(-1009999, "channel", title="Other"), "administrator")),  # ignored
+    ])
+    assert asyncio.run(n.discover_destinations()) is True
+    assert n.channel_id == "-1001234" and n.admin_chat_id == "555" and n.ready
+    assert persisted == [("-1001234", "555")]
+    # signals go to the channel, admin messages to the DM
+    assert asyncio.run(n.send_text("hello")) == "1" and n.bot.sent[-1]["chat_id"] == "-1001234"
+    asyncio.run(n.send_admin("ops"))
+    assert n.bot.sent[-1]["chat_id"] == "555"
+    st = n.stats()
+    assert st["ready"] and st["channel_id"] == "-1001234" and st["hint"] is None
+    # once both destinations are known, no more polling happens
+    asyncio.run(n.discover_destinations())
+    assert n.bot.offsets == [None]
+
+
+def test_telegram_waits_for_channel_and_guides_owner(settings):
+    """Only a private /start seen: bot replies with instructions and keeps signals unsent (logged) until a channel appears."""
+    cfg = settings.with_overrides(telegram_bot_token="123:abc", telegram_channel_id="")
+    n = TelegramNotifier(cfg)
+    n.bot = _DiscoveryBot([_Upd(1, message=_Msg(_Chat(777, "private", first_name="Ali")))])
+    n.bot_username = "my_signal_bot"
+    assert asyncio.run(n.discover_destinations()) is False
+    assert n.admin_chat_id == "777" and n.channel_id is None
+    assert n.bot.sent and n.bot.sent[-1]["chat_id"] == "777" and "administrator" in n.bot.sent[-1]["text"]
+    assert "my_signal_bot" in n.discovery_hint
+    assert asyncio.run(n.send_text("signal")) is None and n.failed == 0   # nothing sent, no failure counted
+    # later the channel is created
+    n.bot.updates.append(_Upd(2, channel_post=_Msg(_Chat(-100555, "channel", title="Crypto Signals"))))
+    assert asyncio.run(n.discover_destinations()) is True
+    assert n.channel_id == "-100555" and n.discovery_hint is None
+    assert asyncio.run(n.send_text("signal")) == "2"
+
+
+def test_explicit_channel_id_still_wins(settings):
+    cfg = settings.with_overrides(telegram_bot_token="123:abc", telegram_channel_id="@public_channel")
+    n = TelegramNotifier(cfg, channel_id="-100111")   # stored value must not override explicit env
+    assert n.channel_id == "@public_channel" and n.ready
+    n.bot = _DiscoveryBot([_Upd(1, channel_post=_Msg(_Chat(-100222, "channel")))])
+    asyncio.run(n.discover_destinations())
+    assert n.channel_id == "@public_channel"
+
+
+def test_bot_persists_discovered_destinations(settings):
+    """SignalBot stores discovered ids in bot_status and reuses them on the next start."""
+    db = Database("sqlite:///:memory:")
+    db.create_tables()
+    cfg = settings.with_overrides(telegram_bot_token="123:abc", telegram_channel_id="", notify_startup=False,
+                                  run_cycle_on_startup=False)
+    bot = SignalBot(cfg, db, collector=ForcedSignalCollector(cfg))
+    assert isinstance(bot.notifier, TelegramNotifier) and bot.notifier.channel_id is None
+    bot.notifier.bot = _DiscoveryBot([_Upd(1, my_chat_member=_MemberUpd(_Chat(-100777, "channel", title="S"), "administrator"))])
+    asyncio.run(bot.notifier.discover_destinations())
+    with db.session() as session:
+        row = db.get_or_create_status(session)
+        assert row.telegram_channel_id == "-100777"
+    bot2 = SignalBot(cfg, db, collector=ForcedSignalCollector(cfg))
+    assert bot2.notifier.channel_id == "-100777" and bot2.notifier.ready
+    db.dispose()

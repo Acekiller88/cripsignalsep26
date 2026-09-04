@@ -43,8 +43,11 @@ def status(d):
         ds.get("rest_failures"), ds.get("last_rest_error")))
     if ds.get("unsupported_symbols"):
         print("  unsupported_symbols=%s" % ",".join(ds["unsupported_symbols"]))
-    print("  telegram enabled=%s sent=%s failed=%s last_error=%s" % (
-        tg.get("enabled"), tg.get("sent"), tg.get("failed"), tg.get("last_error")))
+    print("  telegram enabled=%s ready=%s bot=%s channel=%s admin_chat=%s sent=%s failed=%s last_error=%s" % (
+        tg.get("enabled"), tg.get("ready"), tg.get("bot"), tg.get("channel_id"), tg.get("admin_chat_id"),
+        tg.get("sent"), tg.get("failed"), tg.get("last_error")))
+    if tg.get("hint"):
+        print("  telegram hint: %s" % tg["hint"])
     print("  last_error=%s at %s" % (live.get("last_error"), live.get("last_error_at")))
     print("  signals total=%s active=%s" % (d.get("total_signals"), d.get("active_signals")))
 
@@ -113,6 +116,19 @@ def signals(d):
             ",".join(s.get("conditions") or [])))
 
 
+def tg_discover(d):
+    """Print the chats seen in a getUpdates payload, channels first (mirrors TelegramNotifier)."""
+    seen = []
+    for u in d.get("result") or []:
+        m = u.get("channel_post") or u.get("message") or u.get("my_chat_member")
+        c = m.get("chat") if isinstance(m, dict) else None
+        if c and c.get("id") not in [x[1] for x in seen]:
+            seen.append((c.get("type"), c.get("id"), c.get("title") or c.get("username") or c.get("first_name")))
+    for t, i, name in sorted(seen, key=lambda x: 0 if x[0] in ("channel", "group", "supergroup") else 1):
+        kind = "channel" if t in ("channel", "group", "supergroup") else "private"
+        print("%s %s %s" % (kind, i, name))
+
+
 def get(d, path):
     cur = d
     for part in path.split("."):
@@ -144,6 +160,8 @@ def main():
         breakdown(d)
     elif cmd == "signals":
         signals(d)
+    elif cmd == "tg_discover":
+        tg_discover(d)
     elif cmd == "get" and len(sys.argv) > 2:
         get(d, sys.argv[2])
     else:

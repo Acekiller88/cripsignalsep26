@@ -98,6 +98,9 @@ class Settings:
     # --- Telegram -----------------------------------------------------------
     telegram_bot_token: str = ""
     telegram_channel_id: str = ""
+    # Optional private chat (your own DM with the bot) for operational alerts.
+    # Both ids are auto-discovered from getUpdates when left empty.
+    telegram_admin_chat_id: str = ""
     notify_tp_updates: bool = True
     notify_startup: bool = True
     daily_summary_hour_utc: int = 0  # -1 disables the daily summary
@@ -164,7 +167,8 @@ class Settings:
 
     @property
     def telegram_enabled(self) -> bool:
-        return bool(self.telegram_bot_token and self.telegram_channel_id)
+        """A bot token is configured (chat ids may still be auto-discovered at runtime)."""
+        return bool(self.telegram_bot_token)
 
     @property
     def is_synthetic(self) -> bool:
@@ -229,6 +233,7 @@ def load_settings() -> Settings:
         ),
         telegram_bot_token=_env_str("TELEGRAM_BOT_TOKEN"),
         telegram_channel_id=_env_str("TELEGRAM_CHANNEL_ID"),
+        telegram_admin_chat_id=_env_str("TELEGRAM_ADMIN_CHAT_ID"),
         notify_tp_updates=_env_bool("NOTIFY_TP_UPDATES", True),
         notify_startup=_env_bool("NOTIFY_STARTUP", True),
         daily_summary_hour_utc=_env_int("DAILY_SUMMARY_HOUR_UTC", 0),

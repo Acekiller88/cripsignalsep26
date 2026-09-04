@@ -39,7 +39,8 @@ class SignalBot:
         self.s = settings
         self.db = db
         self.collector = collector or create_data_collector(settings)
-        self.notifier = notifier or TelegramNotifier(settings)
+        self.notifier = notifier or TelegramNotifier(settings, persist_callback=self._persist_telegram_destinations,
+                                                     **self._stored_telegram_destinations())
         self.engine = SignalEngine(settings)
         self.monitor = SignalMonitor(settings, db, self.collector, self.notifier)
         self.performance = PerformanceTracker(db)
@@ -71,6 +72,9 @@ class SignalBot:
         await self.collector.start(list(self.s.trading_pairs))
         ok, info = await self.collector.check_connection()
         logger.info("Data source %s: %s", self.collector.name, info)
+        if getattr(self.notifier, "enabled", False):
+            tg_ok, tg_info = await self.notifier.test_connection()
+            logger.info("Telegram: %s", tg_info if tg_ok else f"unavailable ({tg_info})")
         self._write_status(started=True)
         if self.s.notify_startup:
             try:
@@ -82,6 +86,8 @@ class SignalBot:
             asyncio.create_task(self._monitor_loop(), name="monitor"),
             asyncio.create_task(self._heartbeat_loop(), name="heartbeat"),
         ]
+        if getattr(self.notifier, "enabled", False):
+            self._tasks.append(asyncio.create_task(self._telegram_loop(), name="telegram"))
         if self.s.daily_summary_hour_utc >= 0:
             self._tasks.append(asyncio.create_task(self._summary_loop(), name="summary"))
         logger.info("🚀 Crypto Signal Bot v%s started — %d pairs, %s timeframe, source=%s",
@@ -158,6 +164,32 @@ class SignalBot:
                 logger.warning("Heartbeat failed: %s", exc)
             try:
                 await asyncio.wait_for(self._stop.wait(), timeout=30)
+                break
+            except asyncio.TimeoutError:
+                pass
+
+    async def _telegram_loop(self) -> None:
+        """Discover channel/admin chat when not configured and alert the owner on persistent errors."""
+        announced = False
+        error_alert_at: Optional[datetime] = None
+        while not self._stop.is_set():
+            try:
+                had_channel = bool(self.notifier.channel_id)
+                await self.notifier.discover_destinations()
+                if self.notifier.channel_id and not had_channel and self.s.notify_startup and not announced:
+                    announced = True
+                    ok, info = await self.collector.check_connection()
+                    await self.notifier.send_startup(info if ok else f"data source problem: {info}")
+                # operational alert (at most once per 6 h) when the last cycle failed
+                if self.last_error and self.last_error_at and (
+                        error_alert_at is None or (utcnow() - error_alert_at).total_seconds() > 6 * 3600):
+                    error_alert_at = utcnow()
+                    await self.notifier.send_admin(f"⚠️ <b>Bot error</b> at {self.last_error_at:%Y-%m-%d %H:%M} UTC:\n"
+                                                   f"<code>{self.last_error[:400]}</code>")
+            except Exception as exc:  # pragma: no cover
+                logger.warning("Telegram maintenance failed: %s", str(exc)[:160])
+            try:
+                await asyncio.wait_for(self._stop.wait(), timeout=60)
                 break
             except asyncio.TimeoutError:
                 pass
@@ -376,6 +408,23 @@ class SignalBot:
     def _record_error(self, message: str) -> None:
         self.last_error = message[:500]
         self.last_error_at = utcnow()
+
+    def _stored_telegram_destinations(self) -> dict:
+        """Chat ids discovered by a previous run (kept in bot_status)."""
+        try:
+            self.db.create_tables()
+            with self.db.session() as session:
+                row = self.db.get_or_create_status(session)
+                return {"channel_id": row.telegram_channel_id, "admin_chat_id": row.telegram_admin_chat_id}
+        except Exception as exc:  # pragma: no cover - DB not ready yet; discovery will run again
+            logger.debug("Could not read stored Telegram destinations: %s", exc)
+            return {}
+
+    def _persist_telegram_destinations(self, channel_id: Optional[str], admin_chat_id: Optional[str]) -> None:
+        with self.db.session() as session:
+            row = self.db.get_or_create_status(session)
+            row.telegram_channel_id = channel_id
+            row.telegram_admin_chat_id = admin_chat_id
 
     def _write_status(self, started: bool = False) -> None:
         with self.db.session() as session:

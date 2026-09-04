@@ -26,15 +26,14 @@ else
 fi
 
 if [[ -z "$CHAT" ]]; then
-  echo "WARN  TELEGRAM_CHANNEL_ID empty – chats seen by the bot recently (post something in the channel first):"
-  curl -s -m 15 "https://api.telegram.org/bot${TOKEN}/getUpdates" | python3 -c '
-import sys,json
-for u in json.load(sys.stdin).get("result",[]):
-    m=u.get("channel_post") or u.get("message") or u.get("my_chat_member",{}) 
-    c=m.get("chat") if isinstance(m,dict) else None
-    if c: print(f"  chat id={c.get(\"id\")} type={c.get(\"type\")} title={c.get(\"title\") or c.get(\"username\")}")
-'
-  echo "===== END REPORT ====="; exit 1
+  # Same discovery rule as the bot: first channel/group the bot was added to wins.
+  CHAT="$(curl -s -m 15 "https://api.telegram.org/bot${TOKEN}/getUpdates" | python3 scripts/report_lib.py tg_discover 2>/dev/null | tee /dev/stderr | awk '/^channel /{print $2; exit}')"
+  if [[ -z "$CHAT" ]]; then
+    echo "INFO  TELEGRAM_CHANNEL_ID empty and no channel seen yet – the running bot will pick the channel up"
+    echo "      automatically as soon as it is added as administrator (or set TELEGRAM_CHANNEL_ID in .env)."
+    echo "===== END REPORT ====="; exit 0
+  fi
+  echo "PASS  channel auto-discovered: ${CHAT} (the bot will use it automatically)"
 fi
 
 CH="$(curl -s -m 15 "https://api.telegram.org/bot${TOKEN}/getChat" -d "chat_id=${CHAT}")"

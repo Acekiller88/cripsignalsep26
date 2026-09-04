@@ -6,6 +6,28 @@ dashboard, backups and monitoring. It also applies to any Ubuntu VPS
 
 ---
 
+## 0. Zero-touch option (recommended – no SSH needed)
+
+The whole installation can be done from the Oracle web console alone:
+
+1. Open `scripts/cloud-init.sh` from this repository, copy its contents and
+   replace `PASTE_TOKEN_FROM_BOTFATHER_HERE` with your Telegram bot token
+   (that is the only value you must edit).
+2. **Compute → Instances → Create instance** – image *Ubuntu 22.04/24.04*,
+   shape *VM.Standard.A1.Flex* (2 OCPU / 12 GB, Always Free), public IPv4 on.
+3. **Show advanced options → Management → Initialization script → Paste
+   cloud-init script** – paste the edited file. Create the instance.
+4. Wait ~10 minutes. The VM installs Docker, clones the repo, starts the stack
+   and verifies it (log: `/var/log/crypto-signal-bot-install.log`).
+5. In Telegram: create a channel, add your bot as **administrator** with
+   "Post messages". Within a minute the bot posts *"Crypto Signal Bot online"*
+   – no chat id needed, the bot discovers the channel itself. Optionally send
+   `/start` to the bot in a private chat to receive operational alerts too.
+6. To see the dashboard, open ports 8501/8000 in the security list (section 2)
+   and browse to `http://<public-ip>:8501`.
+
+Everything below is the manual equivalent for people who prefer SSH.
+
 ## 1. Create the VM
 
 1. Oracle Cloud Console → **Compute → Instances → Create instance**
@@ -70,7 +92,7 @@ Minimum to edit in `.env`:
 ```
 POSTGRES_PASSWORD=<strong random password>
 TELEGRAM_BOT_TOKEN=123456:ABC...
-TELEGRAM_CHANNEL_ID=-100xxxxxxxxxx
+TELEGRAM_CHANNEL_ID=                  # optional – auto-discovered when the bot is made channel admin
 BINANCE_TESTNET=true            # start on testnet
 ADMIN_TOKEN=<random string>     # protects the admin endpoints
 ```

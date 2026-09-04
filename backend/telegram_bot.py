@@ -12,7 +12,7 @@ import asyncio
 import html
 import logging
 from datetime import datetime
-from typing import Optional, Tuple
+from typing import Callable, Optional, Tuple
 
 from config import Settings
 from utils import fmt_pct, fmt_price
@@ -185,13 +185,30 @@ def format_startup_message(settings: Settings, source_info: str) -> str:
 # Notifier
 # ---------------------------------------------------------------------------
 class TelegramNotifier:
-    def __init__(self, settings: Settings):
+    """Sends messages to the signal channel (and optionally to the owner's private chat).
+
+    Destinations: `TELEGRAM_CHANNEL_ID` / `TELEGRAM_ADMIN_CHAT_ID` from the
+    environment, or – when they are empty – discovered automatically from the
+    bot's pending updates: the first channel the bot was made administrator of
+    becomes the signal channel, the first private chat that sent `/start`
+    becomes the admin chat.  Discovered ids are persisted through
+    `persist_callback` (bot_status table) so they survive restarts.
+    """
+
+    def __init__(self, settings: Settings, channel_id: Optional[str] = None, admin_chat_id: Optional[str] = None,
+                 persist_callback: Optional[Callable[[Optional[str], Optional[str]], None]] = None):
         self.s = settings
         self.enabled = settings.telegram_enabled
         self.bot = None
         self.sent = 0
         self.failed = 0
         self.last_error: Optional[str] = None
+        self.channel_id: Optional[str] = settings.telegram_channel_id or channel_id or None
+        self.admin_chat_id: Optional[str] = settings.telegram_admin_chat_id or admin_chat_id or None
+        self.bot_username: Optional[str] = None
+        self.discovery_hint: Optional[str] = None
+        self._persist = persist_callback
+        self._update_offset: Optional[int] = None
         self._lock = asyncio.Lock()
         if self.enabled:
             try:
@@ -205,13 +222,83 @@ class TelegramNotifier:
                 logger.error("Could not initialise Telegram bot: %s", exc)
                 self.enabled = False
         else:
-            logger.warning("Telegram disabled (TELEGRAM_BOT_TOKEN / TELEGRAM_CHANNEL_ID not set) — messages are logged only")
+            logger.warning("Telegram disabled (TELEGRAM_BOT_TOKEN not set) — messages are logged only")
 
     # ------------------------------------------------------------------
-    async def send_text(self, text: str, disable_notification: bool = False) -> Optional[str]:
-        """Send an HTML message to the channel. Returns the message id (or None)."""
+    # Destination discovery
+    # ------------------------------------------------------------------
+    @property
+    def ready(self) -> bool:
+        return self.enabled and self.bot is not None and bool(self.channel_id)
+
+    async def discover_destinations(self) -> bool:
+        """Look at pending updates for a channel / private chat. Returns True when the channel is known."""
+        if not self.enabled or self.bot is None:
+            return False
+        if self.channel_id and self.admin_chat_id:
+            return True
+        try:
+            updates = await self.bot.get_updates(offset=self._update_offset, timeout=0, read_timeout=15.0,
+                                                 allowed_updates=["message", "channel_post", "my_chat_member"])
+        except Exception as exc:
+            self.last_error = f"{type(exc).__name__}: {exc}"
+            logger.warning("Telegram getUpdates failed: %s", str(exc)[:160])
+            return bool(self.channel_id)
+        found_channel = found_admin = False
+        for upd in updates:
+            self._update_offset = upd.update_id + 1
+            chat = None
+            if upd.my_chat_member is not None:
+                status = getattr(upd.my_chat_member.new_chat_member, "status", "")
+                if status in ("administrator", "member", "creator"):
+                    chat = upd.my_chat_member.chat
+            elif upd.channel_post is not None:
+                chat = upd.channel_post.chat
+            elif upd.message is not None:
+                chat = upd.message.chat
+            if chat is None:
+                continue
+            if chat.type == "channel" and not self.channel_id:
+                self.channel_id = str(chat.id)
+                found_channel = True
+                logger.info("Telegram: discovered signal channel %s (%s)", chat.id, chat.title)
+            elif chat.type == "private" and not self.admin_chat_id:
+                self.admin_chat_id = str(chat.id)
+                found_admin = True
+                logger.info("Telegram: discovered admin chat %s (%s)", chat.id, chat.username or chat.first_name)
+            elif chat.type in ("group", "supergroup") and not self.channel_id:
+                # a group works as a signal destination too
+                self.channel_id = str(chat.id)
+                found_channel = True
+                logger.info("Telegram: discovered signal group %s (%s)", chat.id, chat.title)
+        if (found_channel or found_admin) and self._persist is not None:
+            try:
+                self._persist(self.channel_id, self.admin_chat_id)
+            except Exception as exc:  # pragma: no cover
+                logger.warning("Could not persist Telegram destinations: %s", exc)
+        if found_admin and not found_channel and self.admin_chat_id and not self.channel_id:
+            await self.send_text(
+                "👋 Hi! I'm your Crypto Signal Bot.\n\nTo receive signals, create a channel (or group), add me as "
+                "<b>administrator</b> with permission to post, and I'll start posting there automatically within a minute.",
+                chat_id=self.admin_chat_id)
+        if not self.channel_id:
+            me = self.bot_username or "your bot"
+            self.discovery_hint = (f"waiting for a channel: add @{me} as administrator of a Telegram channel "
+                                   f"(or set TELEGRAM_CHANNEL_ID)")
+        else:
+            self.discovery_hint = None
+        return bool(self.channel_id)
+
+    # ------------------------------------------------------------------
+    async def send_text(self, text: str, disable_notification: bool = False,
+                        chat_id: Optional[str] = None) -> Optional[str]:
+        """Send an HTML message to the channel (or `chat_id`). Returns the message id (or None)."""
         if not self.enabled or self.bot is None:
             logger.info("[telegram:disabled] %s", text.replace("\n", " | ")[:300])
+            return None
+        target = chat_id or self.channel_id
+        if not target:
+            logger.info("[telegram:no-channel-yet] %s", text.replace("\n", " | ")[:300])
             return None
         from telegram.error import RetryAfter, TimedOut, NetworkError, TelegramError
 
@@ -220,7 +307,7 @@ class TelegramNotifier:
             for attempt in range(1, 5):
                 try:
                     msg = await self.bot.send_message(
-                        chat_id=self.s.telegram_channel_id, text=text, parse_mode="HTML",
+                        chat_id=target, text=text, parse_mode="HTML",
                         disable_web_page_preview=True, disable_notification=disable_notification,
                     )
                     self.sent += 1
@@ -257,14 +344,26 @@ class TelegramNotifier:
         return await self.send_text(format_daily_summary(summary, overall), disable_notification=True)
 
     async def send_startup(self, source_info: str) -> Optional[str]:
-        return await self.send_text(format_startup_message(self.s, source_info), disable_notification=True)
+        text = format_startup_message(self.s, source_info)
+        mid = await self.send_text(text, disable_notification=True)
+        if self.admin_chat_id and self.admin_chat_id != self.channel_id:
+            await self.send_text(text, disable_notification=True, chat_id=self.admin_chat_id)
+        return mid
+
+    async def send_admin(self, text: str) -> Optional[str]:
+        """Operational message to the owner's private chat (falls back to the channel)."""
+        return await self.send_text(text, disable_notification=True, chat_id=self.admin_chat_id or self.channel_id)
 
     async def test_connection(self) -> Tuple[bool, str]:
         if not self.enabled or self.bot is None:
             return False, "Telegram not configured"
         try:
             me = await self.bot.get_me()
-            return True, f"Connected as @{me.username}"
+            self.bot_username = me.username
+            if not self.channel_id:
+                await self.discover_destinations()
+            dest = f"channel {self.channel_id}" if self.channel_id else "no channel yet (add the bot as channel admin)"
+            return True, f"Connected as @{me.username} — {dest}"
         except Exception as exc:
             return False, f"{type(exc).__name__}: {exc}"
 
@@ -276,4 +375,6 @@ class TelegramNotifier:
                 pass
 
     def stats(self) -> dict:
-        return {"enabled": self.enabled, "sent": self.sent, "failed": self.failed, "last_error": self.last_error}
+        return {"enabled": self.enabled, "ready": self.ready, "bot": self.bot_username, "channel_id": self.channel_id,
+                "admin_chat_id": self.admin_chat_id, "sent": self.sent, "failed": self.failed,
+                "last_error": self.last_error, "hint": self.discovery_hint}

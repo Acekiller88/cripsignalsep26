@@ -67,7 +67,7 @@ done
 PGP="$(grep -E '^POSTGRES_PASSWORD=' .env | cut -d= -f2-)"
 set_kv DATABASE_URL "postgresql://crypto_user:${PGP}@localhost:5432/crypto_signals"
 chmod 600 .env
-echo "  TELEGRAM configured: $([[ -n "$(grep -E '^TELEGRAM_BOT_TOKEN=' .env | cut -d= -f2-)" ]] && echo yes || echo no)"
+echo "  TELEGRAM token: $([[ -n "$(grep -E '^TELEGRAM_BOT_TOKEN=' .env | cut -d= -f2-)" ]] && echo yes || echo no)   channel: $(v="$(grep -E '^TELEGRAM_CHANNEL_ID=' .env | cut -d= -f2-)"; [[ -n "$v" ]] && echo "$v" || echo auto-discover)"
 echo "  BINANCE_TESTNET: $(grep -E '^BINANCE_TESTNET=' .env | cut -d= -f2-)   DATA_SOURCE: $(grep -E '^DATA_SOURCE=' .env | cut -d= -f2-)"
 
 # ------------------------------------------------------------- build/run ----

@@ -61,6 +61,7 @@ crypto-signal-bot/
 │   ├── DEPLOYMENT.md           # Oracle Cloud (free tier) step-by-step guide
 │   └── OPERATOR_GUIDE.md       # Task catalogue for the (AI) operator running the server
 ├── scripts/
+│   ├── cloud-init.sh           # Zero-touch VM installer (paste into the cloud console)
 │   ├── deploy.sh               # Install Docker, write .env, build, start, verify
 │   ├── verify.sh               # Full health/config/API/dashboard verification report
 │   ├── report_status.sh        # Daily status & performance report
@@ -82,7 +83,7 @@ One-liner on a fresh Ubuntu server (installs Docker, writes `.env`, builds, star
 ```bash
 git clone -b arena/01a06815-cripsignalsep26 https://github.com/Acekiller88/cripsignalsep26.git crypto-signal-bot
 cd crypto-signal-bot && chmod +x scripts/*.sh
-TELEGRAM_BOT_TOKEN='123:abc' TELEGRAM_CHANNEL_ID='-100123' ./scripts/deploy.sh
+TELEGRAM_BOT_TOKEN='123:abc' ./scripts/deploy.sh   # channel is auto-discovered once the bot is made admin
 ./scripts/verify.sh            # anytime: full health report
 ./scripts/report_status.sh 7   # daily: performance report
 ```
@@ -91,7 +92,7 @@ Manual equivalent:
 
 ```bash
 cp .env.example .env
-nano .env            # TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL_ID, (optional) Binance keys
+nano .env            # TELEGRAM_BOT_TOKEN (channel id optional), (optional) Binance keys
 docker compose up -d --build
 docker compose logs -f backend
 ```
@@ -109,7 +110,8 @@ The database schema is created automatically on first start.
 | `BINANCE_TESTNET` | `true` | `true` = testnet.binancefuture.com, `false` = live market data |
 | `BINANCE_API_KEY` / `BINANCE_SECRET` | empty | Optional – public kline data needs no keys |
 | `DATA_SOURCE` | `binance` | `synthetic` = offline demo data (no internet) |
-| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHANNEL_ID` | empty | Leave empty to run without Telegram (messages are logged) |
+| `TELEGRAM_BOT_TOKEN` | empty | Leave empty to run without Telegram (messages are logged) |
+| `TELEGRAM_CHANNEL_ID` / `TELEGRAM_ADMIN_CHAT_ID` | empty | Optional – auto-discovered: the first channel the bot is made admin of, and the first private chat that sends `/start` |
 | `TRADING_PAIRS` | `BTCUSDT,ETHUSDT,SOLUSDT,XRPUSDT,DOGEUSDT` | Any USD-M perpetuals |
 | `TIMEFRAME` | `15m` | Main timeframe; cycles align to candle close |
 | `MIN_CONDITIONS` | `2` | Conditions required out of 3 |

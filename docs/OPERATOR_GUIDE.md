@@ -38,6 +38,17 @@ not want to do anything manually – he only relays messages.
 - Recommended: Oracle Cloud Always-Free `VM.Standard.A1.Flex` (2 OCPU / 12 GB);
   see `docs/DEPLOYMENT.md` for the click-path and firewall rules.
 
+## No operator with a shell? Use the zero-touch path
+
+If nobody in the loop can run commands on a server, skip T0–T4: the owner
+creates the VM in the Oracle web console and pastes `scripts/cloud-init.sh`
+(with the bot token filled in) into the *Initialization script* box – see
+`docs/DEPLOYMENT.md` §0. The VM installs and verifies itself, and the bot
+announces itself in Telegram once it is made channel administrator. The
+developer then reads health/status through the public API
+(`http://<ip>:8000/api/status`) and the operator role reduces to relaying the
+public IP.
+
 ## Task catalogue
 
 Each task is one command. Run them in order the first time.
@@ -72,16 +83,17 @@ blocked region, and `PASS=7 FAIL=0` from an allowed one.
 ### T2 – validate Telegram
 
 ```bash
-TELEGRAM_BOT_TOKEN='<token>' TELEGRAM_CHANNEL_ID='<id>' ./scripts/telegram_test.sh
+TELEGRAM_BOT_TOKEN='<token>' ./scripts/telegram_test.sh
 ```
-Report: the REPORT block (mask the token). If the channel id is unknown, run it
-with only the token after posting any message in the channel – it lists the chat
-ids it can see.
+Report: the REPORT block (mask the token). A channel id is **not** required:
+the bot discovers the first channel it is made administrator of (the script
+prints it when it is already visible). `TELEGRAM_CHANNEL_ID='<id>'` may be added
+to force a specific channel.
 
 ### T3 – deploy the 24/7 stack
 
 ```bash
-TELEGRAM_BOT_TOKEN='<token>' TELEGRAM_CHANNEL_ID='<id>' BINANCE_TESTNET=true ./scripts/deploy.sh
+TELEGRAM_BOT_TOKEN='<token>' BINANCE_TESTNET=true ./scripts/deploy.sh
 ```
 Installs Docker if missing, writes `.env` (generates a strong DB password and
 an `ADMIN_TOKEN`), opens ports 8000/8501 in iptables, builds the images, starts
