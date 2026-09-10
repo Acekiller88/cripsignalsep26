@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GRID SIGNAL v6 — SMC Engine + Grid Translator</title>
+<style>
+:root{
+  --bg:#0b0f19;--card:#151d30;--accent:#1e2942;--border:#263554;
+  --txt:#f1f5f9;--dim:#94a3b8;
+  --bull:#00e676;--bear:#ff3d00;--warn:#ffb300;--blue:#2979ff;
+  --aplus:#00e676;--a:#7cff5e;--b:#ffb300;--c:#94a3b8;
+  --mono:'Courier New',Courier,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font-family:var(--sans);padding:16px;line-height:1.45}
+header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:16px}
+.logo h1{font-size:20px;letter-spacing:.5px}
+.logo p{color:var(--dim);font-size:12px}
+.hdr-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pill{font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:var(--accent)}
+.pill.bull{color:var(--bull);border-color:var(--bull)}
+.pill.bear{color:var(--bear);border-color:var(--bear)}
+.pill.range{color:var(--warn);border-color:var(--warn)}
+.pill.overlap{color:#ff80ab;border-color:#ff80ab}
+.pill.ny{color:#82b1ff;border-color:#82b1ff}
+.pill.london{color:#b388ff;border-color:#b388ff}
+.pill.asia{color:#ffd180;border-color:#ffd180}
+.btn{background:linear-gradient(135deg,#2979ff,#0747a6);color:#fff;border:none;padding:9px 22px;border-radius:6px;font-weight:700;cursor:pointer;transition:.2s}
+.btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(41,121,255,.3)}
+.btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.btn.mini{padding:4px 12px;font-size:11px;font-weight:600}
+.btn.mini.danger{background:linear-gradient(135deg,#ff3d00,#8a1c00)}
+.t-win{color:var(--bull);font-weight:700}.t-loss{color:var(--bear);font-weight:700}.t-open{color:var(--warn)}
+.btn.scanning{animation:pulse 1.2s infinite}
+@keyframes pulse{50%{opacity:.6}}
+#progressWrap{height:4px;background:var(--accent);border-radius:2px;margin-bottom:14px;overflow:hidden}
+#progressBar{height:100%;width:0;background:linear-gradient(90deg,#2979ff,#00e676);transition:width .3s}
+.cmd-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:16px}
+.cmd-box{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px}
+.cmd-label{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.cmd-value{font-size:18px;font-weight:800;font-family:var(--mono)}
+.cmd-value.bull{color:var(--bull)}.cmd-value.bear{color:var(--bear)}.cmd-value.amber{color:var(--warn)}
+.cmd-sub{font-size:11px;color:var(--dim);margin-top:2px}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:16px}
+.ctrl{display:flex;flex-direction:column;gap:3px}
+.ctrl label{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px}
+select,input[type=range]{background:var(--accent);color:var(--txt);border:1px solid var(--border);border-radius:5px;padding:5px 8px;font-size:13px}
+.ctrl-check{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim)}
+.sec-title{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:800;margin:18px 0 10px}
+.sec-badge{font-size:11px;background:var(--accent);border:1px solid var(--border);padding:2px 10px;border-radius:12px;color:var(--dim)}
+.sec-badge.hot{color:var(--bull);border-color:var(--bull)}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px}
+.sig-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;position:relative}
+.sig-card.rank1{border-color:var(--bull);box-shadow:0 0 18px rgba(0,230,118,.12)}
+.sig-card.rank2{border-color:#7cff5e66}
+.sig-card.rank3{border-color:#ffb30055}
+.sig-card.LONG{border-left:4px solid var(--bull)}
+.sig-card.SHORT{border-left:4px solid var(--bear)}
+.sig-card.BLACKLIST{border-left:4px solid var(--warn);opacity:.65}
+.card-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.pair{font-weight:800;font-size:16px}
+.badges{display:flex;gap:5px}
+.badge{font-size:10px;font-weight:800;padding:2px 8px;border-radius:4px;text-transform:uppercase}
+.badge.LONG{background:rgba(0,230,118,.15);color:var(--bull)}
+.badge.SHORT{background:rgba(255,61,0,.15);color:var(--bear)}
+.badge.gAplus{background:rgba(0,230,118,.2);color:var(--aplus);border:1px solid var(--aplus)}
+.badge.gA{background:rgba(124,255,94,.12);color:var(--a)}
+.badge.gB{background:rgba(255,179,0,.12);color:var(--b)}
+.badge.gC{background:rgba(148,163,184,.12);color:var(--c)}
+.price-row{display:flex;gap:14px;font-family:var(--mono);font-size:13px;margin-bottom:8px;flex-wrap:wrap}
+.price-row b{font-size:15px}
+.kv{display:flex;flex-direction:column}
+.kv span{font-size:9px;color:var(--dim);text-transform:uppercase}
+.kv b.sl{color:var(--bear)}.kv b.tp{color:var(--bull)}
+.chips{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0}
+.chip{font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px;display:flex;align-items:center;gap:4px;text-transform:uppercase;letter-spacing:.3px}
+.chip .dot{width:5px;height:5px;border-radius:50%}
+.chip.ok{background:rgba(0,230,118,.1);color:var(--bull)}.chip.ok .dot{background:var(--bull)}
+.chip.fail{background:rgba(148,163,184,.08);color:#5a6b8a}.chip.fail .dot{background:#5a6b8a}
+.gridbox{background:var(--accent);border:1px solid var(--border);border-radius:8px;padding:10px;margin-top:8px}
+.gridbox h4{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--blue);margin-bottom:7px;display:flex;justify-content:space-between}
+.gridbox h4 .gmode{color:var(--txt)}
+.gb-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-family:var(--mono);font-size:12px}
+.gb-item span{display:block;font-size:9px;color:var(--dim);text-transform:uppercase;font-family:var(--sans)}
+.gb-item b.up{color:var(--bull)}.gb-item b.dn{color:var(--bear)}.gb-item b.mid{color:var(--warn)}
+.action{margin-top:10px;text-align:center;font-weight:800;font-size:12px;padding:6px;border-radius:5px;letter-spacing:1px}
+.action.execute{background:rgba(0,230,118,.12);color:var(--bull)}
+.action.reduce{background:rgba(255,179,0,.12);color:var(--warn)}
+.action.skip{background:rgba(148,163,184,.1);color:var(--dim)}
+.blk-reason{margin-top:8px;font-size:11px;color:var(--warn)}
+.no-sigs{text-align:center;padding:40px 10px;color:var(--dim);grid-column:1/-1}
+.no-sigs .ic{font-size:30px;margin-bottom:8px}
+table{width:100%;border-collapse:collapse;font-size:12px;background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+th{background:var(--accent);text-align:left;padding:8px 10px;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--dim)}
+td{padding:7px 10px;border-top:1px solid var(--accent);font-family:var(--mono)}
+tr.hasSig td{background:rgba(41,121,255,.05)}
+.t-long{color:var(--bull);font-weight:700}.t-short{color:var(--bear);font-weight:700}.t-dim{color:#5a6b8a}
+.t-blk{color:var(--warn);font-weight:700}
+#toast{position:fixed;bottom:20px;right:20px;background:var(--accent);border:1px solid var(--border);padding:10px 18px;border-radius:8px;font-size:13px;opacity:0;transition:.3s;pointer-events:none;z-index:99}
+#toast.show{opacity:1}
+#toast.ok{border-color:var(--bull)}#toast.err{border-color:var(--bear)}
+.warnbar{display:none;background:rgba(255,179,0,.08);border:1px solid var(--warn);color:var(--warn);border-radius:8px;padding:10px 14px;font-size:12px;margin-bottom:14px}
+.warnbar.show{display:block}
+details.manual{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin-top:22px;font-size:13px;color:var(--dim)}
+details.manual summary{cursor:pointer;font-weight:700;color:var(--txt);font-size:14px}
+details.manual ol{margin:10px 0 4px 18px;display:grid;gap:6px}
+details.manual b{color:var(--txt)}
+footer{margin-top:24px;padding-top:12px;border-top:1px solid var(--border);color:var(--dim);font-size:11px;text-align:center}
+@media(max-width:700px){.cards{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <h1>⛭ GRID SIGNAL v6</h1>
+    <p>SMC Institutional Engine + Pionex Grid Translator · Binance Spot API</p>
+  </div>
+  <div class="hdr-right">
+    <div class="pill" id="sessionPill">SESSION: <span id="sessionTxt">—</span></div>
+    <div class="pill" id="biasPill">BIAS: <span id="biasTxt">—</span></div>
+    <div class="pill" id="statusPill">IDLE</div>
+    <button class="btn" id="scanBtn" onclick="startScan()">▶ SCAN PASARAN</button>
+  </div>
+</header>
+
+<div id="progressWrap"><div id="progressBar"></div></div>
+
+<div class="warnbar" id="apiWarn">⚠ Kebanyakan permintaan API gagal. Kemungkinan sekatan rangkaian/region terhadap Binance. Cuba aktifkan <b>Mod Demo</b> untuk melihat cara dashboard berfungsi, atau guna VPN.</div>
+
+<div class="cmd-grid">
+  <div class="cmd-box"><div class="cmd-label">Regime Dominan</div><div class="cmd-value" id="cmdRegime">—</div><div class="cmd-sub" id="cmdRegimeSub">Belum scan</div></div>
+  <div class="cmd-box"><div class="cmd-label">Bias Pasaran (HTF)</div><div class="cmd-value" id="cmdBias">—</div><div class="cmd-sub" id="cmdBiasSub">—</div></div>
+  <div class="cmd-box"><div class="cmd-label">Signal Aktif</div><div class="cmd-value" id="cmdSig">0</div><div class="cmd-sub" id="cmdSigSub">A+ / A / B</div></div>
+  <div class="cmd-box"><div class="cmd-label">Blacklist</div><div class="cmd-value amber" id="cmdBlk">0</div><div class="cmd-sub">Volatiliti melampau / chaos</div></div>
+  <div class="cmd-box"><div class="cmd-label">Sesi Semasa</div><div class="cmd-value" id="cmdSess">—</div><div class="cmd-sub" id="cmdSessSub">—</div></div>
+</div>
+
+<div class="controls">
+  <div class="ctrl"><label>Timeframe</label>
+    <select id="tfSel" onchange="onSettingsChange()">
+      <option value="15m">15m (Grid Scalp)</option>
+      <option value="1h" selected>1H (Intraday)</option>
+      <option value="4h">4H (Swing)</option>
+    </select>
+  </div>
+  <div class="ctrl"><label>Gred Minimum</label>
+    <select id="gradeSel" onchange="onSettingsChange()">
+      <option value="aplus">A+ sahaja (sniper)</option>
+      <option value="a" selected>A+ dan A</option>
+      <option value="b">A+, A dan B</option>
+      <option value="all">Semua</option>
+    </select>
+  </div>
+  <div class="ctrl"><label>Regime Filter</label>
+    <select id="regimeSel" onchange="onSettingsChange()">
+      <option value="smart" selected>Smart (tradeable sahaja)</option>
+      <option value="trend">Trend Expansion sahaja</option>
+      <option value="all">Semua regime</option>
+    </select>
+  </div>
+  <div class="ctrl"><label>Prob. Min: <span id="probVal">70</span>%</label>
+    <input type="range" id="probSlider" min="50" max="90" value="70" oninput="document.getElementById('probVal').textContent=this.value" onchange="onSettingsChange()">
+  </div>
+  <div class="ctrl-check"><input type="checkbox" id="smcReq" checked onchange="onSettingsChange()"><span>Wajib konfluens SMC (≥3 lapisan)</span></div>
+  <div class="ctrl-check"><input type="checkbox" id="autoScan"><span>Auto-scan 90s</span></div>
+  <div class="ctrl-check"><input type="checkbox" id="demoMode"><span>Mod Demo (data simulasi)</span></div>
+</div>
+
+<div class="sec-title">🎯 TOP SETUP <span class="sec-badge" id="sigCount">0 signal</span></div>
+<div class="cards" id="topCards"><div class="no-sigs"><div class="ic">🔍</div><p>Tekan <b>SCAN PASARAN</b> untuk mula.</p></div></div>
+
+<div class="sec-title">📡 SIGNAL LAIN <span class="sec-badge" id="restCount">0</span></div>
+<div class="cards" id="restCards"><div class="no-sigs"><div class="ic">⬡</div><p>Tiada data lagi.</p></div></div>
+
+<div class="sec-title">🗓 MATRIKS PEMANTAUAN — SEMUA PASANGAN</div>
+<div style="overflow-x:auto">
+<table>
+  <thead><tr><th>Pair</th><th>Harga</th><th>Regime</th><th>HTF</th><th>RSI</th><th>ADX</th><th>SMC Skor</th><th>Gred</th><th>Arah</th><th>Prob</th><th>Status</th></tr></thead>
+  <tbody id="matrixBody"></tbody>
+</table>
+</div>
+
+<div class="sec-title">📓 JURNAL SIGNAL <span class="sec-badge" id="jrnBadge">0 rekod</span>
+  <span style="margin-left:auto;display:flex;gap:8px">
+    <button class="btn mini" onclick="jExport()">⬇ Export JSON</button>
+    <button class="btn mini danger" onclick="jClear()">🗑 Padam</button>
+  </span>
+</div>
+<div class="cmd-grid" id="jrnStats">
+  <div class="cmd-box"><div class="cmd-label">Win Rate Keseluruhan</div><div class="cmd-value" id="jsWR">—</div><div class="cmd-sub" id="jsWRsub">Belum ada rekod selesai</div></div>
+  <div class="cmd-box"><div class="cmd-label">Expectancy (R)</div><div class="cmd-value" id="jsExp">—</div><div class="cmd-sub">Purata R per signal</div></div>
+  <div class="cmd-box"><div class="cmd-label">Profit Factor</div><div class="cmd-value" id="jsPF">—</div><div class="cmd-sub">Jumlah R menang ÷ R kalah</div></div>
+  <div class="cmd-box"><div class="cmd-label">Signal Terbuka</div><div class="cmd-value amber" id="jsOpen">0</div><div class="cmd-sub">Menunggu TP / SL</div></div>
+</div>
+<div style="overflow-x:auto;margin-bottom:10px">
+<table>
+  <thead><tr><th>Gred</th><th>Signal</th><th>Menang</th><th>Kalah</th><th>Win %</th><th>Jumlah R</th><th>Verdict</th></tr></thead>
+  <tbody id="jrnByGrade"><tr><td colspan="7" class="t-dim">Belum ada data — jalankan scan dan biarkan signal matang.</td></tr></tbody>
+</table>
+</div>
+<div style="overflow-x:auto">
+<table>
+  <thead><tr><th>Masa</th><th>Pair</th><th>TF</th><th>Arah</th><th>Gred</th><th>Entry</th><th>SL</th><th>TP1</th><th>Status</th><th>R</th></tr></thead>
+  <tbody id="jrnRows"><tr><td colspan="10" class="t-dim">Jurnal kosong.</td></tr></tbody>
+</table>
+</div>
+
+<div class="sec-title">🧪 BACKTEST REPLAY <span class="sec-badge" id="btBadge">walk-forward, tanpa look-ahead</span></div>
+<div class="controls">
+  <div class="ctrl"><label>Skop Pair</label>
+    <select id="btScope">
+      <option value="10" selected>10 pair pertama</option>
+      <option value="20">20 pair</option>
+      <option value="40">40 pair</option>
+      <option value="80">Semua 80 (lambat)</option>
+    </select>
+  </div>
+  <div class="ctrl"><label>Timeframe</label>
+    <select id="btTF">
+      <option value="15m">15m</option>
+      <option value="1h" selected>1H</option>
+      <option value="4h">4H</option>
+    </select>
+  </div>
+  <div class="ctrl-check"><input type="checkbox" id="btUseFilters" checked><span>Guna tetapan semasa (regime/SMC/prob)</span></div>
+  <button class="btn" id="btRun" onclick="runBacktest()">▶ JALANKAN BACKTEST</button>
+  <span class="cmd-sub" id="btProgress"></span>
+</div>
+<div class="cmd-grid" id="btStats" style="display:none">
+  <div class="cmd-box"><div class="cmd-label">Jumlah Signal</div><div class="cmd-value" id="btN">0</div><div class="cmd-sub" id="btNsub">—</div></div>
+  <div class="cmd-box"><div class="cmd-label">Win Rate</div><div class="cmd-value" id="btWR">—</div><div class="cmd-sub">TP1/TP2 vs SL</div></div>
+  <div class="cmd-box"><div class="cmd-label">Expectancy (R)</div><div class="cmd-value" id="btExp">—</div><div class="cmd-sub">Purata R per signal</div></div>
+  <div class="cmd-box"><div class="cmd-label">Profit Factor</div><div class="cmd-value" id="btPF">—</div><div class="cmd-sub">&gt;1.5 = edge kukuh</div></div>
+</div>
+<div style="overflow-x:auto;margin-bottom:8px">
+<table>
+  <thead><tr><th>Gred</th><th>Signal</th><th>TP1</th><th>TP2</th><th>SL</th><th>Tamat</th><th>Win %</th><th>Jumlah R</th><th>Verdict</th></tr></thead>
+  <tbody id="btByGrade"><tr><td colspan="9" class="t-dim">Belum dijalankan.</td></tr></tbody>
+</table>
+</div>
+<div style="overflow-x:auto">
+<table>
+  <thead><tr><th>Pair</th><th>Signal</th><th>W/L</th><th>Jumlah R</th></tr></thead>
+  <tbody id="btByPair"></tbody>
+</table>
+</div>
+<p class="cmd-sub" style="margin-top:6px">⚠ Nota kejujuran (rujukan jesse-ai): replay hanya guna candle ≤ masa keputusan (tiada look-ahead), SL disemak DAHULU dalam candle yang sama (konservatif). Keputusan masa lalu tidak menjamin masa depan. Sampel &lt; 30 signal = belum signifikan.</p>
+
+<details class="manual">
+  <summary>📖 Panduan Ringkas — Signal → Grid Bot Pionex (SOP v6)</summary>
+  <ol>
+    <li><b>Scan</b> dan tunggu senarai signal. Fokus pada gred <b>A+</b> (5+/7 konfluens SMC) atau <b>A</b> (4/7). Gred B = kurangkan saiz. Blacklist = JANGAN sentuh.</li>
+    <li><b>Jenis grid:</b> Signal LONG → <b>Long Grid</b> (bawah = SL struktur, atas = TP2). Signal SHORT → <b>Short Grid</b> (futures). Regime RANGE tanpa arah → tiada signal, tunggu.</li>
+    <li><b>Masukkan parameter</b> yang dipaparkan pada kad: <b>Range Bawah / Range Atas / Bil. Grid</b>. Jarak grid telah dikira supaya &gt; 2× fee (≈0.1% round-trip) — bawah nilai itu, bot rugi walau "menang".</li>
+    <li><b>Stop Loss bot:</b> set stop-bot pada harga SL kad (bawah range untuk Long Grid). Jangan biar grid tanpa lantai.</li>
+    <li><b>Leverage</b> ikut cadangan kad (1–3×). Regime CHAOS/volatiliti melampau = automatik blacklist.</li>
+    <li><b>Sesi:</b> keutamaan London/NY & overlap. Asia = range/akumulasi, elak deploy grid arah baru.</li>
+    <li><b>Keluar:</b> harga tutup melepasi range atas (ambil untung, redeploy lebih tinggi jika trend berterusan) atau sentuh SL (henti, tunggu setup baru). Auto-scan 90s membantu pantau.</li>
+  </ol>
+</details>
+
+<footer>GRID SIGNAL v6 · Sintesis daripada v5 Institutional Engine + SOP Pionex (spacing ≥ 2× fee, regime filter, blacklist ATR) + SOP vX 7-Point · Bukan nasihat kewangan. DYOR.</footer>
+
+<div id="toast"></div>
+
+<script>
+/* ══════════════════ KONFIGURASI ══════════════════ */
+const PAIRS=['BTCUSDT','ETHUSDT','BNBUSDT','SOLUSDT','XRPUSDT','ADAUSDT','AVAXUSDT','DOGEUSDT','LTCUSDT','LINKUSDT','DOTUSDT','ATOMUSDT','NEARUSDT','APTUSDT','ARBUSDT','OPUSDT','INJUSDT','SUIUSDT','FETUSDT','RENDERUSDT','WLDUSDT','TIAUSDT','SEIUSDT','JUPUSDT','WIFUSDT','TRXUSDT','UNIUSDT','ETCUSDT','XLMUSDT','FILUSDT','AAVEUSDT','ICPUSDT','GRTUSDT','ALGOUSDT','SANDUSDT','MANAUSDT','PEPEUSDT','ORDIUSDT','BONKUSDT','TONUSDT','BCHUSDT','HBARUSDT','STXUSDT','ENAUSDT','SHIBUSDT','POLUSDT','VETUSDT','IMXUSDT','LDOUSDT','RUNEUSDT','CRVUSDT','DYDXUSDT','CHZUSDT','GALAUSDT','EGLDUSDT','FLOWUSDT','THETAUSDT','AXSUSDT','APEUSDT','QNTUSDT','KSMUSDT','NEOUSDT','IOTAUSDT','ZECUSDT','ROSEUSDT','ONEUSDT','CELOUSDT','ANKRUSDT','JASMYUSDT','FLOKIUSDT','ARUSDT','PYTHUSDT','JTOUSDT','STRKUSDT','PENDLEUSDT','WUSDT','TAOUSDT','NOTUSDT','ETHFIUSDT','EIGENUSDT'];
+const HTF_MAP={'15m':'4h','1h':'4h','4h':'1d'};
+const KLINE_LIM=300,HTF_LIM=200,SCAN_INT=90000,REQ_DELAY=180,FETCH_TO=14000;
+const FEE_RT=0.10; // % round-trip (taker 0.05% x2) — grid spacing mesti > 2x ini utk untung bersih
+let currentTF='1h',minProb=70,gradeFilter='a',regimeFilter='smart',smcRequired=true;
+let autoTimer=null,isScanning=false,scanResults={},failCount=0;
+
+/* ══════════════════ UTIL ══════════════════ */
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function fmt(p){if(p==null||isNaN(p))return'—';if(p>=10000)return p.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});if(p>=1000)return p.toFixed(2);if(p>=100)return p.toFixed(3);if(p>=1)return p.toFixed(4);if(p>=0.01)return p.toFixed(5);return p.toPrecision(4);}
+function showToast(msg,cls){const t=document.getElementById('toast');t.textContent=msg;t.className='show '+(cls||'');clearTimeout(t._h);t._h=setTimeout(()=>t.className='',3500);}
+function setProgress(p){document.getElementById('progressBar').style.width=p+'%';}
+function setStatus(txt){document.getElementById('statusPill').textContent=txt;}
+
+/* ══════════════════ DATA ══════════════════ */
+async function fetchKlines(symbol,interval,limit){
+  if(document.getElementById('demoMode').checked)return genDemoCandles(symbol,interval,limit);
+  const eps=['https://api.binance.com/api/v3/klines','https://data-api.binance.vision/api/v3/klines','https://api1.binance.com/api/v3/klines'];
+  let lastErr=null;
+  for(const base of eps){
+    try{
+      const ctrl=new AbortController();const t=setTimeout(()=>ctrl.abort(),FETCH_TO);
+      const res=await fetch(`${base}?symbol=${symbol}&interval=${interval}&limit=${limit}`,{signal:ctrl.signal,cache:'no-store'});
+      clearTimeout(t);
+      if(!res.ok)throw new Error('HTTP '+res.status);
+      const data=await res.json();
+      return data.map(k=>({time:+k[0],open:+k[1],high:+k[2],low:+k[3],close:+k[4],volume:+k[5]}));
+    }catch(e){lastErr=e;}
+  }
+  throw lastErr||new Error('Fetch gagal');
+}
+/* Mod demo: random-walk + senario SMC berskrip (sweep → displacement → BOS) supaya UI boleh diuji tanpa API */
+function genDemoCandles(symbol,interval,limit){
+  let seed=0;for(const ch of symbol)seed=(seed*31+ch.charCodeAt(0))>>>0;
+  const isHTF=interval==='4h'||interval==='1d';
+  const rnd=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};
+  const scenario=rnd(); // <0.35 bull setup, <0.5 bear setup, selainnya range/noise
+  const bullSetup=scenario<0.35,bearSetup=!bullSetup&&scenario<0.5;
+  const dirF=bullSetup?1:bearSetup?-1:0;
+  let px=symbol.startsWith('BTC')?93000:symbol.startsWith('ETH')?3300:10+rnd()*90;
+  const vol=0.006+rnd()*0.006;
+  const out=[];let t=Date.now()-limit*3600e3;
+  for(let i=0;i<limit;i++){
+    const prog=i/limit;
+    // fasa trend: separuh kedua siri condong ikut arah senario (utk EMA/HTF align) — masih bercampur merah/hijau
+    let drift=(rnd()-0.5)*vol+(prog>0.4?dirF*vol*0.22:0);
+    let open=px,close=Math.max(open*(1+drift),1e-8);
+    let hi=Math.max(open,close)*(1+rnd()*vol*0.5);
+    let lo=Math.min(open,close)*(1-rnd()*vol*0.5);
+    // Senario LTF berskrip pada candle-candle terakhir: pullback → sweep → reclaim → displacement
+    if(!isHTF&&dirF!==0){
+      const k=limit-i;
+      if(k>=7&&k<=10){ // pullback melawan arah (sejukkan RSI)
+        close=open*(1-vol*0.5*dirF);hi=Math.max(open,close)*(1+rnd()*vol*0.3);lo=Math.min(open,close)*(1-rnd()*vol*0.3);
+      }else if(k===6){ // liquidity sweep: wick menembusi low/high 20-candle lalu tutup semula
+        const win=out.slice(-20);
+        if(dirF>0){const pl=Math.min(...win.map(c=>c.low));lo=pl*0.994;close=Math.max(open*0.999,pl*1.004);hi=Math.max(open,close)*1.001;}
+        else{const ph=Math.max(...win.map(c=>c.high));hi=ph*1.006;close=Math.min(open*1.001,ph*0.996);lo=Math.min(open,close)*0.999;}
+      }else if(k===5){ // candle kecil selepas sweep (boleh merah)
+        close=open*(1-vol*0.2*dirF);hi=Math.max(open,close)*(1+rnd()*vol*0.2);lo=Math.min(open,close)*(1-rnd()*vol*0.2);
+      }else if(k===4){ // displacement: badan besar > 1.8x ATR
+        close=open*(1+vol*2.4*dirF);
+        hi=Math.max(open,close)*(1+rnd()*0.001);lo=Math.min(open,close)*(1-rnd()*0.001);
+      }else if(k===3){ // pullback kecil
+        close=open*(1-vol*0.3*dirF);hi=Math.max(open,close)*1.0005;lo=Math.min(open,close)*0.9995;
+      }else if(k<=2){ // follow-through / BOS sederhana
+        close=open*(1+vol*0.6*dirF);
+        hi=Math.max(open,close)*1.001;lo=Math.min(open,close)*0.999;
+      }
+    }
+    px=close;
+    out.push({time:t,open,high:hi,low:lo,close,volume:1000+rnd()*9000*(i>limit-8?2:1)});t+=3600e3;
+  }
+  return out;
+}
+
+/* ══════════════════ INDIKATOR ══════════════════ */
+function calcEMA(arr,period){const res=new Array(arr.length).fill(null);const k=2/(period+1);let started=false;for(let i=0;i<arr.length;i++){if(arr[i]==null||isNaN(arr[i])){res[i]=res[i-1]??null;continue}if(!started){res[i]=arr[i];started=true;continue}res[i]=arr[i]*k+(res[i-1]??arr[i])*(1-k);}return res;}
+function calcSMA(arr,period){const res=new Array(arr.length).fill(null);for(let i=period-1;i<arr.length;i++){let s=0,ok=true;for(let j=0;j<period;j++){const v=arr[i-j];if(v==null||isNaN(v)){ok=false;break}s+=v;}res[i]=ok?s/period:null;}return res;}
+function calcRMA(arr,period){const res=new Array(arr.length).fill(null);let sum=0,count=0,started=false;for(let i=0;i<arr.length;i++){if(arr[i]==null||isNaN(arr[i]))continue;if(!started){sum+=arr[i];count++;if(count>=period){res[i]=sum/period;started=true;}}else{res[i]=((res[i-1]??sum/period)*(period-1)+arr[i])/period;}}
+  // isi lompang null selepas bermula
+  for(let i=1;i<res.length;i++)if(res[i]==null&&res[i-1]!=null)res[i]=res[i-1];
+  return res;}
+function calcATR(h,l,c,period){const tr=new Array(h.length).fill(null);for(let i=1;i<h.length;i++)tr[i]=Math.max(h[i]-l[i],Math.abs(h[i]-c[i-1]),Math.abs(l[i]-c[i-1]));return calcRMA(tr,period);}
+function calcRSI(closes,period){const g=new Array(closes.length).fill(null),l=new Array(closes.length).fill(null);for(let i=1;i<closes.length;i++){const d=closes[i]-closes[i-1];g[i]=Math.max(d,0);l[i]=Math.max(-d,0);}const ag=calcRMA(g,period),al=calcRMA(l,period);return ag.map((v,i)=>{if(v==null||al[i]==null)return null;return al[i]===0?100:100-100/(1+v/al[i]);});}
+function calcMACD(closes,fast=12,slow=26,signal=9){const fE=calcEMA(closes,fast),sE=calcEMA(closes,slow);const ml=fE.map((v,i)=>v!=null&&sE[i]!=null?v-sE[i]:null);const sl=calcEMA(ml,signal);const hist=ml.map((v,i)=>v!=null&&sl[i]!=null?v-sl[i]:null);return{macdL:ml,sigL:sl,hist};}
+function calcADX(h,l,c,period=14){const n=h.length;const dmP=new Array(n).fill(0),dmM=new Array(n).fill(0),trR=new Array(n).fill(null);for(let i=1;i<n;i++){const up=h[i]-h[i-1],dn=l[i-1]-l[i];dmP[i]=(up>dn&&up>0)?up:0;dmM[i]=(dn>up&&dn>0)?dn:0;trR[i]=Math.max(h[i]-l[i],Math.abs(h[i]-c[i-1]),Math.abs(l[i]-c[i-1]));}const atrS=calcRMA(trR,period);const diP=calcRMA(dmP,period).map((v,i)=>v!=null&&atrS[i]>0?100*v/atrS[i]:null);const diM=calcRMA(dmM,period).map((v,i)=>v!=null&&atrS[i]>0?100*v/atrS[i]:null);const dx=diP.map((p,i)=>{if(p==null||diM[i]==null)return null;const s=p+diM[i];return s>0?100*Math.abs(p-diM[i])/s:0;});return{adx:calcRMA(dx,period),diP,diM};}
+function calcBollinger(closes,period=20,mult=2){const sma=calcSMA(closes,period);const bw=new Array(closes.length).fill(null);for(let i=period-1;i<closes.length;i++){if(sma[i]==null)continue;let v=0;for(let j=0;j<period;j++)v+=Math.pow(closes[i-j]-sma[i],2);const sd=Math.sqrt(v/period);bw[i]=sma[i]>0?(2*mult*sd)/sma[i]:null;}return{bw,mid:sma};}
+function calcSupertrend(h,l,c,period=10,mult=3.0){const n=h.length;const atr=calcATR(h,l,c,period);const dir=new Array(n).fill(null),stL=new Array(n).fill(null);let pST=null,pU=null,pL=null;for(let i=1;i<n;i++){if(atr[i]==null)continue;const hl2=(h[i]+l[i])/2;let nU=hl2+mult*atr[i],nL=hl2-mult*atr[i];if(pL!=null)nL=(nL>pL||c[i-1]<pL)?nL:pL;if(pU!=null)nU=(nU<pU||c[i-1]>pU)?nU:pU;let d;if(pST==null)d=1;else if(pST===pU)d=c[i]>nU?-1:1;else d=c[i]<nL?1:-1;const st=d===-1?nL:nU;pST=st;pU=nU;pL=nL;dir[i]=d;stL[i]=st;}return{direction:dir,stLine:stL};}
+
+/* ══════════════════ MODUL SMC ══════════════════ */
+function detectOrderBlocks(candles){
+  const n=candles.length;const bullOBs=[],bearOBs=[];
+  for(let i=10;i<n-3;i++){
+    const c=candles[i];
+    if(c.close<c.open){let ds=0;for(let j=i+1;j<Math.min(i+4,n);j++){const d=candles[j];if(d.close>d.open)ds+=d.close-d.open;}if(ds>Math.abs(c.close-c.open)*1.5)bullOBs.push({high:c.high,low:c.low,idx:i});}
+    if(c.close>c.open){let ds=0;for(let j=i+1;j<Math.min(i+4,n);j++){const d=candles[j];if(d.close<d.open)ds+=d.open-d.close;}if(ds>Math.abs(c.close-c.open)*1.5)bearOBs.push({high:c.high,low:c.low,idx:i});}
+  }
+  const close=candles[n-1].close;
+  const freshBull=bullOBs.filter(ob=>close>=ob.low*0.997&&close<=ob.high*1.05&&close>ob.low).slice(-3);
+  const freshBear=bearOBs.filter(ob=>close<=ob.high*1.003&&close>=ob.low*0.95&&close<ob.high).slice(-3);
+  return{bullOBs:freshBull,bearOBs:freshBear,hasBullOB:freshBull.length>0,hasBearOB:freshBear.length>0};
+}
+function detectFVG(candles){
+  const n=candles.length;const bullFVGs=[],bearFVGs=[];
+  for(let i=1;i<n-2;i++){const prev=candles[i-1],curr=candles[i],next=candles[i+1];if(prev.high<next.low&&curr.close>curr.open)bullFVGs.push({top:next.low,bottom:prev.high,idx:i});if(prev.low>next.high&&curr.close<curr.open)bearFVGs.push({top:prev.low,bottom:next.high,idx:i});}
+  const close=candles[n-1].close;const atr=candles.slice(-20).reduce((s,c)=>s+(c.high-c.low),0)/20;
+  const freshBull=bullFVGs.filter(g=>close>=g.bottom*0.997&&close<=g.bottom+atr*2.5).slice(-2);
+  const freshBear=bearFVGs.filter(g=>close<=g.top*1.003&&close>=g.top-atr*2.5).slice(-2);
+  return{hasBullFVG:freshBull.length>0,hasBearFVG:freshBear.length>0};
+}
+function detectLiqSweep(highs,lows,closes,lookback=20){
+  const n=closes.length;let bullSweep=false,bearSweep=false,sweepStrength=0;
+  for(let i=n-8;i<n-1;i++){
+    if(i<=lookback)continue;
+    const prevLow=Math.min(...lows.slice(Math.max(0,i-lookback),i));
+    const prevHigh=Math.max(...highs.slice(Math.max(0,i-lookback),i));
+    if(lows[i]<prevLow&&closes[i]>prevLow){const ws=(prevLow-lows[i])/lows[i];if(ws>0.003){bullSweep=true;sweepStrength=Math.min(ws*100,10);}}
+    if(highs[i]>prevHigh&&closes[i]<prevHigh){const ws=(highs[i]-prevHigh)/prevHigh;if(ws>0.003){bearSweep=true;sweepStrength=Math.min(ws*100,10);}}
+  }
+  return{bullSweep,bearSweep,sweepStrength};
+}
+function detectDisplacement(candles){
+  const atr=candles.slice(-20).reduce((s,c)=>s+(c.high-c.low),0)/20;
+  let bullD=false,bearD=false,displSize=0;
+  for(const c of candles.slice(-5)){const body=Math.abs(c.close-c.open);if(body>atr*1.8){if(c.close>c.open){bullD=true;displSize=body/atr;}else{bearD=true;displSize=body/atr;}}}
+  return{bullDisplacement:bullD,bearDisplacement:bearD,displSize};
+}
+function calcBOS(highs,lows,closes,lookback=20){
+  const n=closes.length;const bosL=new Array(n).fill(false),bosS=new Array(n).fill(false);
+  let lastSH=null,lastSL=null;
+  for(let i=2*lookback;i<n;i++){const p=i-lookback;let isH=true,isL=true;for(let k=p-lookback;k<=p+lookback;k++){if(k===p||k<0||k>=n)continue;if(highs[k]>=highs[p])isH=false;if(lows[k]<=lows[p])isL=false;}if(isH)lastSH=highs[p];if(isL)lastSL=lows[p];bosL[i]=lastSH!=null&&closes[i]>lastSH;bosS[i]=lastSL!=null&&closes[i]<lastSL;}
+  return{bosFreshLong:bosL.slice(-4).some(b=>b),bosFreshShort:bosS.slice(-4).some(b=>b)};
+}
+function calcStructuralSL(highs,lows,closes,direction,atrVal,obData){
+  const n=closes.length;const close=closes[n-1];
+  if(direction==='LONG'){
+    const candidates=[];
+    for(let i=Math.max(2,n-20);i<n-3;i++){if(lows[i]<=lows[i-1]&&lows[i]<=lows[i+1]&&lows[i]<=(lows[i-2]??Infinity))candidates.push(lows[i]*0.9985);}
+    if(obData.bullOBs.length>0)candidates.push(obData.bullOBs[obData.bullOBs.length-1].low*0.997);
+    candidates.push(Math.min(...lows.slice(-8))*0.9975);
+    candidates.push(close-atrVal*2.2);
+    const valid=candidates.filter(sl=>sl<close&&(close-sl)/close>0.004);
+    return valid.length>0?Math.max(...valid):close-atrVal*2.2;
+  }else{
+    const candidates=[];
+    for(let i=Math.max(2,n-20);i<n-3;i++){if(highs[i]>=(highs[i-1]??0)&&highs[i]>=(highs[i+1]??0)&&highs[i]>=(highs[i-2]??0))candidates.push(highs[i]*1.0015);}
+    if(obData.bearOBs.length>0)candidates.push(obData.bearOBs[obData.bearOBs.length-1].high*1.003);
+    candidates.push(Math.max(...highs.slice(-8))*1.0025);
+    candidates.push(close+atrVal*2.2);
+    const valid=candidates.filter(sl=>sl>close&&(sl-close)/close>0.004);
+    return valid.length>0?Math.min(...valid):close+atrVal*2.2;
+  }
+}
+function analyzeHTF(htfCandles){
+  if(!htfCandles||htfCandles.length<60)return{htfBull:false,htfBear:false,htfNeutral:true,htfSlope:0,inDiscount:false,inPremium:false};
+  const n=htfCandles.length;const closes=htfCandles.map(c=>c.close),highs=htfCandles.map(c=>c.high),lows=htfCandles.map(c=>c.low);
+  const ema20=calcEMA(closes,20)[n-1],ema50=calcEMA(closes,50)[n-1],close=closes[n-1];
+  const htfSlope=ema20!=null&&ema50!=null?((ema20-ema50)/ema50*100):0;
+  const htfHigh=Math.max(...highs.slice(-50)),htfLow=Math.min(...lows.slice(-50));const eq=(htfHigh+htfLow)/2;
+  const htfBull=close>ema20&&close>ema50&&htfSlope>0;const htfBear=close<ema20&&close<ema50&&htfSlope<0;
+  return{htfBull,htfBear,htfNeutral:!htfBull&&!htfBear,htfSlope,inDiscount:close<eq,inPremium:close>eq};
+}
+function detectRegime(adxVal,bwVal){
+  if(adxVal==null||bwVal==null)return{regime:'NEUTRAL',tradeable:true};
+  if(adxVal>40&&bwVal>0.18)return{regime:'VOLATILE_CHAOS',tradeable:false};
+  if(adxVal>28&&bwVal>0.08)return{regime:'TREND_EXPANSION',tradeable:true,preferred:true};
+  if(adxVal>22&&bwVal>0.05)return{regime:'TREND_MATURE',tradeable:true};
+  if(adxVal<18&&bwVal<0.05)return{regime:'SQUEEZE',tradeable:true};
+  if(adxVal<24&&bwVal<0.1)return{regime:'RANGE_ROTATION',tradeable:false};
+  if(adxVal>18&&adxVal<28&&bwVal>0.06)return{regime:'REVERSAL_TRANSITION',tradeable:false};
+  return{regime:'NEUTRAL',tradeable:true};
+}
+function getSessionCtx(atDate){
+  const utcH=(atDate??new Date()).getUTCHours();
+  const inAsia=utcH>=0&&utcH<9,inLondon=utcH>=8&&utcH<17,inNY=utcH>=13&&utcH<22;
+  const nyLondon=utcH>=13&&utcH<17;
+  let session='DEAD ZONE',cls='';
+  if(nyLondon){session='NY/LDN OVERLAP';cls='overlap';}
+  else if(inNY){session='NEW YORK';cls='ny';}
+  else if(inLondon){session='LONDON';cls='london';}
+  else if(inAsia){session='ASIA';cls='asia';}
+  const tradeableSess=inLondon||inNY;
+  const highPriority=nyLondon||(inNY&&utcH<18)||(inLondon&&utcH<12);
+  return{session,cls,tradeableSess,highPriority,utcH};
+}
+function aplusFilter(ctx){
+  const checks=[ctx.htfAligned,ctx.liquiditySweep,ctx.displacementOk,ctx.structureReclaim,ctx.smcOB||ctx.smcFVG,ctx.bos,ctx.zoneOk];
+  const passed=checks.filter(Boolean).length;const total=checks.length;
+  const score=Math.round(passed/total*100);
+  return{passed,total,score,isAplus:passed>=5,isA:passed>=4,isB:passed>=3};
+}
+
+/* ══════════ v6 BARU: PENTERJEMAH GRID (SOP Pionex) ══════════ */
+function buildGridPlan(direction,close,atrVal,sl,tp2,regime){
+  const volPct=atrVal/close*100;
+  let lower,upper,mode;
+  if(direction==='LONG'){mode='LONG GRID';lower=sl;upper=tp2;}
+  else{mode='SHORT GRID';lower=tp2;upper=sl;}
+  if(upper<=lower)return null;
+  const rangePct=(upper-lower)/close*100;
+  // Spacing sasaran: ~separuh ATR%, tetapi WAJIB > 2x fee round-trip (SOP Pionex)
+  let spacing=Math.max(FEE_RT*2+0.05,Math.min(1.5,volPct*0.45));
+  let grids=Math.round(rangePct/spacing);
+  grids=Math.max(5,Math.min(60,grids));
+  spacing=rangePct/grids;
+  const netPerGrid=spacing-FEE_RT;
+  const lev=regime==='TREND_EXPANSION'?3:regime==='TREND_MATURE'?2:regime==='SQUEEZE'?2:1;
+  return{mode,lower,upper,rangePct,grids,spacing,netPerGrid,lev,volPct};
+}
+
+/* ══════════════════ ENJIN ANALISIS ══════════════════ */
+function analyzeCandles(candles,htfCandles,probThreshold,atTime){
+  const n=candles?.length??0;if(n<150)return null;
+  const highs=candles.map(c=>c.high),lows=candles.map(c=>c.low),closes=candles.map(c=>c.close),vols=candles.map(c=>c.volume);
+  const close=closes[n-1];
+  const atrArr=calcATR(highs,lows,closes,14);const atrVal=atrArr[n-1];if(!atrVal||atrVal<=close*0.0005)return null;
+  const rsiVal=calcRSI(closes,14)[n-1];if(rsiVal==null)return null;
+  const{hist}=calcMACD(closes);const histCur=hist[n-1];
+  const macdBull=histCur!=null&&histCur>0,macdBear=histCur!=null&&histCur<0;
+  const volSMA=calcSMA(vols,20);const volSurge=volSMA[n-1]!=null&&vols[n-1]>volSMA[n-1]*1.5;
+  const ema9v=calcEMA(closes,9)[n-1],ema21v=calcEMA(closes,21)[n-1],ema50v=calcEMA(closes,50)[n-1];
+  const emaStackBull=ema9v>ema21v&&ema21v>ema50v,emaStackBear=ema9v<ema21v&&ema21v<ema50v;
+  const{direction:stDir}=calcSupertrend(highs,lows,closes,10,3.0);const stCur=stDir[n-1];
+  const stBull=stCur===-1,stBear=stCur===1;
+  let barsInTrend=1;for(let i=n-2;i>=0&&stDir[i]===stCur;i--)barsInTrend++;
+  const{adx:adxArr}=calcADX(highs,lows,closes,14);const adxVal=adxArr[n-1];
+  const{bw:bwArr}=calcBollinger(closes,20,2);const bwVal=bwArr[n-1];
+
+  // Blacklist SOP vX: volatiliti melampau
+  const atrHist=atrArr.slice(-100).filter(x=>x!=null);
+  const atrAvg=atrHist.length?atrHist.reduce((a,b)=>a+b,0)/atrHist.length:atrVal;
+  const atrRatio=atrAvg>0?atrVal/atrAvg:1;
+
+  // Modul SMC
+  const obData=detectOrderBlocks(candles);
+  const fvgData=detectFVG(candles);
+  const{bullSweep,bearSweep,sweepStrength}=detectLiqSweep(highs,lows,closes);
+  const{bullDisplacement,bearDisplacement,displSize}=detectDisplacement(candles);
+  const{bosFreshLong,bosFreshShort}=calcBOS(highs,lows,closes,20);
+  const htfData=analyzeHTF(htfCandles);
+  const{htfBull,htfBear}=htfData;
+  const regimeObj=detectRegime(adxVal,bwVal);const regime=regimeObj.regime;
+
+  const longStructReclaim=bullSweep&&closes[n-1]>closes[n-2]&&closes[n-1]>closes[n-3];
+  const shortStructReclaim=bearSweep&&closes[n-1]<closes[n-2]&&closes[n-1]<closes[n-3];
+
+  const longQ=aplusFilter({htfAligned:htfBull,liquiditySweep:bullSweep,displacementOk:bullDisplacement,structureReclaim:longStructReclaim,smcOB:obData.hasBullOB,smcFVG:fvgData.hasBullFVG,bos:bosFreshLong,zoneOk:htfData.inDiscount});
+  const shortQ=aplusFilter({htfAligned:htfBear,liquiditySweep:bearSweep,displacementOk:bearDisplacement,structureReclaim:shortStructReclaim,smcOB:obData.hasBearOB,smcFVG:fvgData.hasBearFVG,bos:bosFreshShort,zoneOk:htfData.inPremium});
+
+  const longSL=calcStructuralSL(highs,lows,closes,'LONG',atrVal,obData);
+  const shortSL=calcStructuralSL(highs,lows,closes,'SHORT',atrVal,obData);
+  const longR=close-longSL,shortR=shortSL-close;
+  const longTP1=close+longR*2.0,longTP2=close+longR*3.5;
+  const shortTP1=close-shortR*2.0,shortTP2=close-shortR*3.5;
+  const longRR=(longTP1-close)/Math.max(close-longSL,1e-9);
+  const shortRR=(close-shortTP1)/Math.max(shortSL-close,1e-9);
+
+  const sessionCtx=getSessionCtx(atTime!=null?new Date(atTime):null);
+  const regimeTradeable=regimeFilter==='all'||(regimeFilter==='smart'&&regimeObj.tradeable)||(regimeFilter==='trend'&&regime==='TREND_EXPANSION');
+
+  const sessBonus=sessionCtx.highPriority?6:sessionCtx.tradeableSess?2:-10;
+  const longProb=Math.max(10,Math.min(92,Math.round(30+longQ.score*0.6+(htfBull?8:htfBear?-8:0)+sessBonus)));
+  const shortProb=Math.max(10,Math.min(92,Math.round(30+shortQ.score*0.6+(htfBear?8:htfBull?-8:0)+sessBonus)));
+
+  // Blacklist
+  let blacklisted=false,blkReason='';
+  if(atrRatio>2.2){blacklisted=true;blkReason=`Volatiliti melampau (ATR ${atrRatio.toFixed(1)}× purata)`;}
+  else if(regime==='VOLATILE_CHAOS'){blacklisted=true;blkReason='Regime CHAOS — spacing grid tidak boleh dipercayai';}
+
+  const smcOkL=!smcRequired||longQ.isB;const smcOkS=!smcRequired||shortQ.isB;
+  const longSignal=!blacklisted&&stBull&&longProb>=probThreshold&&regimeTradeable&&rsiVal>30&&rsiVal<72&&longRR>=2.0&&smcOkL&&(htfBull||!smcRequired);
+  const shortSignal=!blacklisted&&stBear&&shortProb>=probThreshold&&regimeTradeable&&rsiVal<70&&rsiVal>28&&shortRR>=2.0&&smcOkS&&(htfBear||!smcRequired);
+
+  let direction=null,signalProb=0;
+  if(longSignal&&(!shortSignal||longProb>=shortProb)){direction='LONG';signalProb=longProb;}
+  else if(shortSignal){direction='SHORT';signalProb=shortProb;}
+
+  const gradeQ=direction==='LONG'?longQ:direction==='SHORT'?shortQ:null;
+  const grade=gradeQ?(gradeQ.isAplus?'A+':gradeQ.isA?'A':gradeQ.isB?'B':'C'):null;
+
+  // v6: pelan grid
+  const gridPlan=direction?buildGridPlan(direction,close,atrVal,direction==='LONG'?longSL:shortSL,direction==='LONG'?longTP2:shortTP2,regime):null;
+
+  return{close,atrVal,atrRatio,rsiVal,adxVal,bwVal,stBull,stBear,barsInTrend,macdBull,macdBear,volSurge,emaStackBull,emaStackBear,
+    htfBull,htfBear,htfData,regime,regimeObj,obData,fvgData,bullSweep,bearSweep,sweepStrength,bullDisplacement,bearDisplacement,displSize,
+    bosFreshLong,bosFreshShort,longStructReclaim,shortStructReclaim,longQ,shortQ,longProb,shortProb,
+    direction,signalProb,grade,entry:close,longSL,longTP1,longTP2,shortSL,shortTP1,shortTP2,longRR,shortRR,
+    blacklisted,blkReason,gridPlan,sessionCtx,timestamp:new Date().toLocaleTimeString('ms-MY')};
+}
+
+/* ══════════════════ SCAN ══════════════════ */
+function gradePasses(grade){
+  if(!grade)return false;
+  if(gradeFilter==='aplus')return grade==='A+';
+  if(gradeFilter==='a')return grade==='A+'||grade==='A';
+  if(gradeFilter==='b')return grade!=='C';
+  return true;
+}
+async function startScan(){
+  if(isScanning)return;isScanning=true;clearTimeout(autoTimer);failCount=0;
+  const btn=document.getElementById('scanBtn');btn.disabled=true;btn.classList.add('scanning');
+  setStatus('SCANNING…');setProgress(0);scanResults={};
+  document.getElementById('apiWarn').classList.remove('show');
+  initMatrix();
+  let done=0;
+  for(const sym of PAIRS){
+    try{
+      const tf=currentTF,htf=HTF_MAP[tf];
+      const[ltf,htfD]=await Promise.all([fetchKlines(sym,tf,KLINE_LIM),fetchKlines(sym,htf,HTF_LIM)]);
+      jResolve(sym,ltf); // selesaikan signal terbuka dgn data terkini (SL dulu — konservatif)
+      const result=analyzeCandles(ltf,htfD,minProb);
+      if(result){scanResults[sym]=result;
+        if(result.direction&&result.grade&&gradePasses(result.grade))jRecord(sym,result);}
+    }catch(e){failCount++;}
+    done++;setProgress(Math.round(done/PAIRS.length*100));
+    updateMatrixRow(sym,scanResults[sym]??null);
+    if(done%5===0){renderAll();updatePanel();}
+    await sleep(REQ_DELAY);
+  }
+  renderAll();updatePanel();jRender();setStatus('SIAP ✓');setProgress(0);
+  btn.disabled=false;btn.classList.remove('scanning');isScanning=false;
+  if(failCount>PAIRS.length*0.8)document.getElementById('apiWarn').classList.add('show');
+  showToast(`Scan selesai — ${Object.keys(scanResults).length}/${PAIRS.length} pasangan dianalisis`,'ok');
+  if(document.getElementById('autoScan').checked)autoTimer=setTimeout(startScan,SCAN_INT);
+}
+function onSettingsChange(){
+  currentTF=document.getElementById('tfSel').value;
+  gradeFilter=document.getElementById('gradeSel').value;
+  regimeFilter=document.getElementById('regimeSel').value;
+  minProb=+document.getElementById('probSlider').value;
+  smcRequired=document.getElementById('smcReq').checked;
+  renderAll();updatePanel();
+}
+
+/* ══════════════════ RENDER ══════════════════ */
+function buildCard(sym,r,rank){
+  const isL=r.direction==='LONG';
+  const sl=isL?r.longSL:r.shortSL,tp1=isL?r.longTP1:r.shortTP1,tp2=isL?r.longTP2:r.shortTP2;
+  const rr=(isL?r.longRR:r.shortRR).toFixed(1);
+  const gCls=r.grade==='A+'?'gAplus':'g'+r.grade;
+  const chips=[
+    {lbl:'HTF Align',ok:isL?r.htfBull:r.htfBear},
+    {lbl:'Liq Sweep',ok:isL?r.bullSweep:r.bearSweep},
+    {lbl:'Displacement',ok:isL?r.bullDisplacement:r.bearDisplacement},
+    {lbl:'Order Block',ok:isL?r.obData.hasBullOB:r.obData.hasBearOB},
+    {lbl:'FVG',ok:isL?r.fvgData.hasBullFVG:r.fvgData.hasBearFVG},
+    {lbl:'BOS',ok:isL?r.bosFreshLong:r.bosFreshShort},
+    {lbl:isL?'Discount':'Premium',ok:isL?r.htfData.inDiscount:r.htfData.inPremium},
+  ].map(c=>`<div class="chip ${c.ok?'ok':'fail'}"><div class="dot"></div>${c.lbl}</div>`).join('');
+  const q=isL?r.longQ:r.shortQ;
+  const actCss=r.grade==='A+'||r.grade==='A'?'execute':r.grade==='B'?'reduce':'skip';
+  const actLbl=r.grade==='A+'||r.grade==='A'?'✅ EXECUTE — deploy grid':r.grade==='B'?'⚠ REDUCE — saiz separuh':'❌ SKIP';
+  const g=r.gridPlan;
+  const gridHtml=g?`
+  <div class="gridbox">
+    <h4>⛭ Setup Grid Pionex <span class="gmode">${g.mode} · ${g.lev}×</span></h4>
+    <div class="gb-grid">
+      <div class="gb-item"><span>Range Bawah</span><b class="dn">${fmt(g.lower)}</b></div>
+      <div class="gb-item"><span>Range Atas</span><b class="up">${fmt(g.upper)}</b></div>
+      <div class="gb-item"><span>Bil. Grid</span><b>${g.grids}</b></div>
+      <div class="gb-item"><span>Jarak/Grid</span><b class="mid">${g.spacing.toFixed(2)}%</b></div>
+      <div class="gb-item"><span>Untung Bersih/Grid</span><b class="up">${g.netPerGrid.toFixed(2)}%</b></div>
+      <div class="gb-item"><span>Julat Total</span><b>${g.rangePct.toFixed(1)}%</b></div>
+    </div>
+  </div>`:'';
+  return`<div class="sig-card ${r.direction} ${rank===1?'rank1':rank===2?'rank2':rank===3?'rank3':''}">
+    <div class="card-top">
+      <div class="pair">${rank?`#${rank} `:''}${sym.replace('USDT','')}<span style="color:var(--dim);font-size:11px">/USDT</span></div>
+      <div class="badges">
+        <span class="badge ${r.direction}">${r.direction}</span>
+        <span class="badge ${gCls}">${r.grade}</span>
+      </div>
+    </div>
+    <div class="price-row">
+      <div class="kv"><span>Entry</span><b>${fmt(r.entry)}</b></div>
+      <div class="kv"><span>SL</span><b class="sl">${fmt(sl)}</b></div>
+      <div class="kv"><span>TP1 (2R)</span><b class="tp">${fmt(tp1)}</b></div>
+      <div class="kv"><span>TP2 (3.5R)</span><b class="tp">${fmt(tp2)}</b></div>
+      <div class="kv"><span>RR</span><b>1:${rr}</b></div>
+      <div class="kv"><span>Prob</span><b>${r.signalProb}%</b></div>
+    </div>
+    <div style="font-size:10px;color:var(--dim)">Konfluens SMC: <b style="color:var(--txt)">${q.passed}/${q.total}</b> · Regime: ${r.regime} · RSI ${r.rsiVal.toFixed(0)} · ADX ${r.adxVal?.toFixed(0)??'—'} · Trend ${r.barsInTrend} bar</div>
+    <div class="chips">${chips}</div>
+    ${gridHtml}
+    <div class="action ${actCss}">${actLbl}</div>
+  </div>`;
+}
+function renderAll(){
+  const all=Object.entries(scanResults)
+    .filter(([,r])=>r&&r.direction&&r.grade&&gradePasses(r.grade))
+    .sort((a,b)=>{const gm={'A+':4,'A':3,'B':2,'C':1};const gd=(gm[b[1].grade]??0)-(gm[a[1].grade]??0);return gd!==0?gd:b[1].signalProb-a[1].signalProb;});
+  const top3=all.slice(0,3),rest=all.slice(3);
+  document.getElementById('sigCount').textContent=all.length+' signal';
+  document.getElementById('sigCount').className='sec-badge'+(all.length?' hot':'');
+  document.getElementById('restCount').textContent=rest.length;
+  document.getElementById('topCards').innerHTML=top3.length?top3.map(([s,r],i)=>buildCard(s,r,i+1)).join(''):
+    `<div class="no-sigs"><div class="ic">🔍</div><p>Tiada signal gred ${gradeFilter.toUpperCase()} buat masa ini.</p><small>Longgarkan filter atau tunggu keadaan lebih baik — sabar ialah kelebihan sniper.</small></div>`;
+  document.getElementById('restCards').innerHTML=rest.length?rest.map(([s,r])=>buildCard(s,r,null)).join(''):
+    `<div class="no-sigs"><div class="ic">⬡</div><p>${all.length?'Semua signal dipaparkan di atas.':'Tiada signal lain.'}</p></div>`;
+}
+function updatePanel(){
+  const all=Object.values(scanResults).filter(r=>r);
+  const sigs=all.filter(r=>r.direction&&gradePasses(r.grade));
+  const blk=all.filter(r=>r.blacklisted);
+  document.getElementById('cmdSig').textContent=sigs.length;
+  document.getElementById('cmdBlk').textContent=blk.length;
+  if(!all.length)return;
+  const rmap={};all.forEach(r=>{rmap[r.regime]=(rmap[r.regime]||0)+1;});
+  const topR=Object.entries(rmap).sort((a,b)=>b[1]-a[1])[0];
+  const rn={'TREND_EXPANSION':'TREND EXP','TREND_MATURE':'MATURE','RANGE_ROTATION':'RANGE','SQUEEZE':'SQUEEZE','VOLATILE_CHAOS':'CHAOS','REVERSAL_TRANSITION':'REVERSAL','NEUTRAL':'NEUTRAL'};
+  document.getElementById('cmdRegime').textContent=rn[topR[0]]??topR[0];
+  document.getElementById('cmdRegimeSub').textContent=`${Math.round(topR[1]/all.length*100)}% pasaran · ${all.length} pasangan`;
+  const bullN=all.filter(r=>r.htfBull).length,bearN=all.filter(r=>r.htfBear).length;
+  const be=document.getElementById('cmdBias');const bp=document.getElementById('biasPill'),bt=document.getElementById('biasTxt');
+  if(bullN>bearN){be.textContent='BULLISH';be.className='cmd-value bull';bp.className='pill bull';bt.textContent='BULL';}
+  else if(bearN>bullN){be.textContent='BEARISH';be.className='cmd-value bear';bp.className='pill bear';bt.textContent='BEAR';}
+  else{be.textContent='NEUTRAL';be.className='cmd-value amber';bp.className='pill range';bt.textContent='NEUTRAL';}
+  document.getElementById('cmdBiasSub').textContent=`${bullN}↑ / ${bearN}↓ pada HTF`;
+}
+function initMatrix(){
+  document.getElementById('matrixBody').innerHTML=PAIRS.map(s=>`<tr id="row-${s}"><td style="font-weight:700">${s.replace('USDT','')}</td><td class="t-dim" colspan="10">menunggu…</td></tr>`).join('');
+}
+function updateMatrixRow(sym,r){
+  const tr=document.getElementById('row-'+sym);if(!tr)return;
+  if(!r){tr.innerHTML=`<td style="font-weight:700">${sym.replace('USDT','')}</td><td class="t-dim" colspan="10">tiada data / gagal</td>`;return;}
+  const q=r.direction==='LONG'?r.longQ:r.direction==='SHORT'?r.shortQ:(r.longQ.passed>=r.shortQ.passed?r.longQ:r.shortQ);
+  const dirTd=r.blacklisted?`<span class="t-blk">BLACKLIST</span>`:r.direction?`<span class="${r.direction==='LONG'?'t-long':'t-short'}">${r.direction}</span>`:'<span class="t-dim">—</span>';
+  const status=r.blacklisted?r.blkReason:r.direction?(gradePasses(r.grade)?'AKTIF':'ditapis'):(r.regimeObj.tradeable?'menunggu setup':'regime tak sesuai');
+  tr.className=r.direction&&gradePasses(r.grade)?'hasSig':'';
+  tr.innerHTML=`<td style="font-weight:700">${sym.replace('USDT','')}</td>
+    <td>${fmt(r.close)}</td>
+    <td>${r.regime.replace('_',' ')}</td>
+    <td>${r.htfBull?'<span class="t-long">↑</span>':r.htfBear?'<span class="t-short">↓</span>':'<span class="t-dim">·</span>'}</td>
+    <td>${r.rsiVal.toFixed(0)}</td>
+    <td>${r.adxVal!=null?r.adxVal.toFixed(0):'—'}</td>
+    <td>${q.passed}/${q.total}</td>
+    <td>${r.grade??'—'}</td>
+    <td>${dirTd}</td>
+    <td>${r.direction?r.signalProb+'%':'—'}</td>
+    <td class="t-dim" style="font-family:var(--sans);font-size:11px">${status}</td>`;
+}
+function updateSessionUI(){
+  const s=getSessionCtx();
+  const sp=document.getElementById('sessionPill');sp.className='pill '+s.cls;
+  document.getElementById('sessionTxt').textContent=s.session;
+  document.getElementById('cmdSess').textContent=s.session;
+  document.getElementById('cmdSessSub').textContent=s.highPriority?'Keutamaan tinggi — likuiditi maksimum':s.tradeableSess?'Sesi aktif':'Likuiditi rendah — berhati-hati';
+}
+/* ══════════════════ FASA 1A: JURNAL SIGNAL (honesty ledger) ══════════════════ */
+const JKEY='gsv6_journal_v1';
+const J_EXPIRE_BARS=100; // signal luput selepas 100 candle tanpa TP/SL
+function jLoad(){try{return JSON.parse(localStorage.getItem(JKEY))||[];}catch(e){return[];}}
+function jSave(arr){try{localStorage.setItem(JKEY,JSON.stringify(arr.slice(-500)));}catch(e){}}
+function jRecord(sym,r){
+  const j=jLoad();
+  // elak duplikasi: satu signal terbuka per pair+tf+arah
+  if(j.some(x=>x.sym===sym&&x.tf===currentTF&&x.dir===r.direction&&x.status==='OPEN'))return;
+  const isL=r.direction==='LONG';
+  j.push({id:Date.now()+'-'+sym,ts:Date.now(),sym,tf:currentTF,dir:r.direction,grade:r.grade,prob:r.signalProb,
+    entry:r.entry,sl:isL?r.longSL:r.shortSL,tp1:isL?r.longTP1:r.shortTP1,tp2:isL?r.longTP2:r.shortTP2,
+    regime:r.regime,session:r.sessionCtx.session,conf:(isL?r.longQ:r.shortQ).passed,status:'OPEN',res:null,rMult:null,barsOpen:0});
+  jSave(j);
+}
+/* Selesaikan signal terbuka guna candle yang baru diambil semasa scan.
+   Konservatif: SL disemak DAHULU dalam candle yang sama. */
+function jResolve(sym,candles){
+  const j=jLoad();let changed=false;
+  for(const t of j){
+    if(t.sym!==sym||t.status!=='OPEN'||t.tf!==currentTF)continue;
+    const after=candles.filter(c=>c.time>t.ts);
+    t.barsOpen=after.length;
+    const isL=t.dir==='LONG';
+    for(const c of after){
+      if(isL?c.low<=t.sl:c.high>=t.sl){t.status='SL';t.res='LOSS';t.rMult=-1;changed=true;break;}
+      if(isL?c.high>=t.tp2:c.low<=t.tp2){t.status='TP2';t.res='WIN';t.rMult=3.5;changed=true;break;}
+      if(isL?c.high>=t.tp1:c.low<=t.tp1){t.status='TP1';t.res='WIN';t.rMult=2.0;changed=true;break;}
+    }
+    if(t.status==='OPEN'&&after.length>=J_EXPIRE_BARS){
+      const last=after[after.length-1].close;
+      const rDist=Math.abs(t.entry-t.sl)||1e-9;
+      t.rMult=+(((isL?last-t.entry:t.entry-last))/rDist).toFixed(2);
+      t.status='EXPIRED';t.res=t.rMult>0?'WIN':'LOSS';changed=true;
+    }
+  }
+  if(changed)jSave(j);
+}
+function calcStats(list){
+  const closed=list.filter(t=>t.status!=='OPEN');
+  const wins=closed.filter(t=>t.rMult>0),losses=closed.filter(t=>t.rMult<=0);
+  const sumR=closed.reduce((s,t)=>s+(t.rMult||0),0);
+  const gw=wins.reduce((s,t)=>s+t.rMult,0),gl=Math.abs(losses.reduce((s,t)=>s+t.rMult,0));
+  return{n:list.length,closed:closed.length,open:list.length-closed.length,wins:wins.length,losses:losses.length,
+    wr:closed.length?wins.length/closed.length*100:null,sumR,exp:closed.length?sumR/closed.length:null,
+    pf:gl>0?gw/gl:(gw>0?Infinity:null)};
+}
+function fmtPF(pf){return pf==null?'—':pf===Infinity?'∞':pf.toFixed(2);}
+function verdict(s){
+  if(s.closed<10)return`<span class="t-dim">sampel kecil (${s.closed})</span>`;
+  if(s.pf>=1.5&&s.wr>=45)return'<span class="t-win">EDGE KUKUH ✓</span>';
+  if(s.pf>=1.0)return'<span class="t-open">MARGINAL</span>';
+  return'<span class="t-loss">TIADA EDGE ✗</span>';
+}
+function jRender(){
+  const j=jLoad();
+  document.getElementById('jrnBadge').textContent=j.length+' rekod';
+  const s=calcStats(j);
+  document.getElementById('jsWR').textContent=s.wr!=null?s.wr.toFixed(0)+'%':'—';
+  document.getElementById('jsWR').className='cmd-value '+(s.wr==null?'':s.wr>=50?'bull':s.wr>=40?'amber':'bear');
+  document.getElementById('jsWRsub').textContent=s.closed?`${s.wins}W / ${s.losses}L daripada ${s.closed} selesai`:'Belum ada rekod selesai';
+  document.getElementById('jsExp').textContent=s.exp!=null?(s.exp>0?'+':'')+s.exp.toFixed(2)+'R':'—';
+  document.getElementById('jsExp').className='cmd-value '+(s.exp==null?'':s.exp>0?'bull':'bear');
+  document.getElementById('jsPF').textContent=fmtPF(s.pf);
+  document.getElementById('jsOpen').textContent=s.open;
+  // ikut gred
+  const grades=['A+','A','B','C'];
+  const rows=grades.map(g=>{
+    const sub=calcStats(j.filter(t=>t.grade===g));
+    if(!sub.n)return'';
+    return`<tr><td style="font-weight:700">${g}</td><td>${sub.n}</td><td class="t-win">${sub.wins}</td><td class="t-loss">${sub.losses}</td><td>${sub.wr!=null?sub.wr.toFixed(0)+'%':'—'}</td><td>${sub.sumR>0?'+':''}${sub.sumR.toFixed(1)}R</td><td>${verdict(sub)}</td></tr>`;
+  }).join('');
+  document.getElementById('jrnByGrade').innerHTML=rows||'<tr><td colspan="7" class="t-dim">Belum ada data — jalankan scan dan biarkan signal matang.</td></tr>';
+  // senarai terkini
+  const recent=[...j].sort((a,b)=>b.ts-a.ts).slice(0,30);
+  document.getElementById('jrnRows').innerHTML=recent.length?recent.map(t=>{
+    const stCls=t.status==='OPEN'?'t-open':(t.rMult>0?'t-win':'t-loss');
+    return`<tr><td>${new Date(t.ts).toLocaleString('ms-MY',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</td>
+    <td style="font-weight:700">${t.sym.replace('USDT','')}</td><td>${t.tf}</td>
+    <td class="${t.dir==='LONG'?'t-long':'t-short'}">${t.dir}</td><td>${t.grade}</td>
+    <td>${fmt(t.entry)}</td><td>${fmt(t.sl)}</td><td>${fmt(t.tp1)}</td>
+    <td class="${stCls}">${t.status}</td><td class="${stCls}">${t.rMult!=null?(t.rMult>0?'+':'')+t.rMult+'R':'—'}</td></tr>`;
+  }).join(''):'<tr><td colspan="10" class="t-dim">Jurnal kosong.</td></tr>';
+}
+function jExport(){
+  const blob=new Blob([JSON.stringify(jLoad(),null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='gridsignal_journal_'+new Date().toISOString().slice(0,10)+'.json';a.click();
+  showToast('Jurnal dieksport','ok');
+}
+function jClear(){
+  if(!confirm('Padam SEMUA rekod jurnal? Tindakan ini tidak boleh diundur.'))return;
+  localStorage.removeItem(JKEY);jRender();showToast('Jurnal dipadam','ok');
+}
+
+/* ══════════════════ FASA 1B: BACKTEST REPLAY (walk-forward) ══════════════════ */
+let btRunning=false;
+async function runBacktest(){
+  if(btRunning||isScanning){showToast('Tunggu proses semasa selesai','err');return;}
+  btRunning=true;
+  const btn=document.getElementById('btRun');btn.disabled=true;btn.classList.add('scanning');
+  const scope=+document.getElementById('btScope').value;
+  const tf=document.getElementById('btTF').value;
+  const useFilters=document.getElementById('btUseFilters').checked;
+  const prog=document.getElementById('btProgress');
+  // simpan & pinda tetapan global sementara jika tak guna filter semasa
+  const saved={regimeFilter,smcRequired,minProb};
+  if(!useFilters){regimeFilter='smart';smcRequired=true;minProb=70;}
+  const trades=[];const pairs=PAIRS.slice(0,scope);
+  const WARMUP=160;
+  try{
+    for(let pi=0;pi<pairs.length;pi++){
+      const sym=pairs[pi];
+      prog.textContent=`(${pi+1}/${pairs.length}) ${sym}…`;
+      let ltf,htf;
+      try{[ltf,htf]=await Promise.all([fetchKlines(sym,tf,KLINE_LIM),fetchKlines(sym,HTF_MAP[tf],HTF_LIM)]);}
+      catch(e){continue;}
+      if(!ltf||ltf.length<WARMUP+20)continue;
+      let openTrade=null;
+      for(let i=WARMUP;i<ltf.length;i++){
+        const c=ltf[i];
+        // 1) urus trade terbuka dahulu (SL dulu — konservatif)
+        if(openTrade){
+          const isL=openTrade.dir==='LONG';
+          if(isL?c.low<=openTrade.sl:c.high>=openTrade.sl){openTrade.rMult=-1;openTrade.status='SL';trades.push(openTrade);openTrade=null;}
+          else if(isL?c.high>=openTrade.tp2:c.low<=openTrade.tp2){openTrade.rMult=3.5;openTrade.status='TP2';trades.push(openTrade);openTrade=null;}
+          else if(isL?c.high>=openTrade.tp1:c.low<=openTrade.tp1){openTrade.rMult=2.0;openTrade.status='TP1';trades.push(openTrade);openTrade=null;}
+          if(openTrade)continue; // satu trade per pair pada satu masa
+        }
+        // 2) tiada look-ahead: hanya candle ≤ i, dan HTF yang sudah TUTUP sebelum masa keputusan
+        const ltfSlice=ltf.slice(0,i+1);
+        const htfSlice=htf.filter(h=>h.time<=c.time);
+        if(htfSlice.length<60)continue;
+        const r=analyzeCandles(ltfSlice,htfSlice,minProb,c.time);
+        if(r&&r.direction&&r.grade){
+          const isL=r.direction==='LONG';
+          openTrade={sym,dir:r.direction,grade:r.grade,entry:r.entry,openIdx:i,
+            sl:isL?r.longSL:r.shortSL,tp1:isL?r.longTP1:r.shortTP1,tp2:isL?r.longTP2:r.shortTP2};
+        }
+        if(i%40===0)await sleep(0); // beri nafas pada UI
+      }
+      if(openTrade){openTrade.rMult=0;openTrade.status='OPEN@END';trades.push(openTrade);}
+      await sleep(10);
+    }
+  }finally{
+    regimeFilter=saved.regimeFilter;smcRequired=saved.smcRequired;minProb=saved.minProb;
+    btn.disabled=false;btn.classList.remove('scanning');btRunning=false;
+  }
+  prog.textContent='Selesai ✓';
+  renderBacktest(trades,tf,pairs.length);
+}
+function renderBacktest(trades,tf,nPairs){
+  const closed=trades.filter(t=>t.status!=='OPEN@END');
+  document.getElementById('btStats').style.display='';
+  const wins=closed.filter(t=>t.rMult>0),losses=closed.filter(t=>t.rMult<=0);
+  const sumR=closed.reduce((s,t)=>s+t.rMult,0);
+  const gw=wins.reduce((s,t)=>s+t.rMult,0),gl=Math.abs(losses.reduce((s,t)=>s+t.rMult,0));
+  const pf=gl>0?gw/gl:(gw>0?Infinity:null);
+  document.getElementById('btN').textContent=closed.length;
+  document.getElementById('btNsub').textContent=`${nPairs} pair · TF ${tf} · ${KLINE_LIM} candle`;
+  const wr=closed.length?wins.length/closed.length*100:null;
+  document.getElementById('btWR').textContent=wr!=null?wr.toFixed(0)+'%':'—';
+  document.getElementById('btWR').className='cmd-value '+(wr==null?'':wr>=50?'bull':wr>=40?'amber':'bear');
+  const exp=closed.length?sumR/closed.length:null;
+  document.getElementById('btExp').textContent=exp!=null?(exp>0?'+':'')+exp.toFixed(2)+'R':'—';
+  document.getElementById('btExp').className='cmd-value '+(exp==null?'':exp>0?'bull':'bear');
+  document.getElementById('btPF').textContent=fmtPF(pf);
+  document.getElementById('btPF').className='cmd-value '+(pf==null?'':pf>=1.5?'bull':pf>=1?'amber':'bear');
+  // ikut gred
+  const rows=['A+','A','B','C'].map(g=>{
+    const sub=closed.filter(t=>t.grade===g);
+    if(!sub.length)return'';
+    const w=sub.filter(t=>t.rMult>0);
+    const tp1=sub.filter(t=>t.status==='TP1').length,tp2=sub.filter(t=>t.status==='TP2').length,sl=sub.filter(t=>t.status==='SL').length;
+    const sR=sub.reduce((s,t)=>s+t.rMult,0);
+    const st=calcStats(sub.map(t=>({...t,status:'X'})));
+    return`<tr><td style="font-weight:700">${g}</td><td>${sub.length}</td><td class="t-win">${tp1}</td><td class="t-win">${tp2}</td><td class="t-loss">${sl}</td><td>${sub.length-tp1-tp2-sl}</td><td>${(w.length/sub.length*100).toFixed(0)}%</td><td>${sR>0?'+':''}${sR.toFixed(1)}R</td><td>${verdict(st)}</td></tr>`;
+  }).join('');
+  document.getElementById('btByGrade').innerHTML=rows||'<tr><td colspan="9" class="t-dim">Tiada signal dijana dalam tempoh replay — filter mungkin terlalu ketat.</td></tr>';
+  // ikut pair
+  const bySym={};closed.forEach(t=>{(bySym[t.sym]??=[]).push(t);});
+  document.getElementById('btByPair').innerHTML=Object.entries(bySym)
+    .map(([sym,ts])=>{const w=ts.filter(t=>t.rMult>0).length;const sR=ts.reduce((s,t)=>s+t.rMult,0);
+      return{sym,n:ts.length,w,l:ts.length-w,sR};})
+    .sort((a,b)=>b.sR-a.sR)
+    .map(x=>`<tr><td style="font-weight:700">${x.sym.replace('USDT','')}</td><td>${x.n}</td><td><span class="t-win">${x.w}</span> / <span class="t-loss">${x.l}</span></td><td class="${x.sR>=0?'t-win':'t-loss'}">${x.sR>0?'+':''}${x.sR.toFixed(1)}R</td></tr>`)
+    .join('')||'<tr><td colspan="4" class="t-dim">—</td></tr>';
+  showToast(`Backtest siap — ${closed.length} signal dinilai`,'ok');
+}
+
+updateSessionUI();setInterval(updateSessionUI,60000);initMatrix();jRender();
+</script>
+</body>
+</html>
