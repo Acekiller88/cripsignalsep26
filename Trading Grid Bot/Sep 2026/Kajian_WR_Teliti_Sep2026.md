@@ -75,6 +75,8 @@ trend 10,872 → blacklist-lepas 10,872 (0% dibunuh) → regime 9,479 (13%)
 
 ## 6. Keputusan: KEKAL / UJI LIVE / JANGAN
 
+> ⛔ SEKSYEN INI SUPERSEDED oleh §10 (data real 8 tahun, N≤4687). Jadual bawah dikekalkan sebagai rekod era-demo sahaja.
+
 | Status | Item |
 |---|---|
 | ✅ KEKAL (bukti demo kukuh + teori) | Gate ADX-menaik · regime-smart · minProb 70 · SMC-required · BE@1.0R (bukan 0.8) · runner separa-TP1 · isB 3.5 |
@@ -95,12 +97,90 @@ trend 10,872 → blacklist-lepas 10,872 (0% dibunuh) → regime 9,479 (13%)
 - Paparan `🔻 Funnel` + jadual `PECAHAN SESI & REGIME` setiap backtest; trade ditag sesi+regime ketika entry.
 - Ujian: 22/22 unit ✓ · base N=6/EXP+0.13 identikal ✓ · suis-OFF menghasilkan semula angka scratch (N=13/−0.48, N=14/+0.28) ✓ · jurnal ✓.
 - Metodologi: harness pin-masa (Rabu 9 Sep 2026 12:00 UTC) — semua angka kajian boleh-ulang merentas larian/mesin.
+- v8.1 (data real §10): skip TP2-room OFF default (`liqGateOn=false`, kotak backtest tidak-checked, cap TP2 kekal). Demo-default kini N=14/EXP+0.28 (angka suis-OFF yang telah disahkan); pinned gates-ON eksplisit kekal N=6/+0.13.
 
 ## 9. Seterusnya (cadangan)
 
-1. Tunggu 4 angka live (§7) sebelum sebarang perubahan strategi — elak overfit ke atas hingar demo (n≈6–16).
+1. ~~Tunggu 4 angka live (§7)~~ — SELESAI in-sandbox: §10 (data real 8thn) menggantikan keperluan 4 backtest manual. Paper-trade live MASIH disyorkan sebelum wang sebenar (fee + slippage + regime semasa).
 2. Jika live mengesahkan: implementasi B1 (dropdown mod exit: BE/Chandelier/STRUCT) + D1 (simulator grid) sebagai v9.
 3. Jangka panjang: penjana senario ground-truth dalam harness (recall/precision vs setup berskrip — ditangguh: risiko circularity, kos bina tinggi).
+4. Keutamaan baharu (dari §10.6): (a) penapis fee-aware (skip trade feeR>ambang — TETAPI trade ketat ialah pembawa edge, perlu ujian); (b) simulator grid D1 (P&L grid sebenar tidak dimodelkan backtest directional); (c) pengesahan live corak NEUTRAL-regime.
+
+## 10. Pengesahan data sebenar — Binance 1H 2017–2025 (10 pair, 585k candle) ✅ SUPERSEDES §2–§6
+
+**Sumber**: klines spot Binance 1H sebenar (cermin GitHub Pennyihui/data — sandbox menyekat semua API exchange di peringkat TLS; data ditarik melalui API GitHub yang dibenarkan, sifar-kos konteks). Pair: BTC ETH BNB SOL XRP ADA DOGE LINK AVAX LTC. Jangka: BTC/ETH Ogos 2017 → Jun 2025 (8 tahun); pair lain lebih pendek mengikut penyenaraian.
+
+**Kaedah**: `runBacktest()` / `v8StepExit()` / `analyzeCandles()` produk asal — HANYA `genDemoCandles()` di-override kepada klines sebenar (harness `driver_real.js`, luar repo). HTF 4H = resample strict (hanya block TUTUP dimasukkan, tiada look-ahead). Derivatif neutral (sama seperti backtest demo — funding/OI/taker tidak boleh diuji atas klines). Tiada fee/slippage dalam enjin (analisis fee berasingan, §10.6). Tetingkap utama: 6000 candle (~8 bulan, Okt 24–Jun 25); pengesahan: full-history dengan cap hirisan 1000 (divalidasi: N=224 vs 226 tanpa-cap, verdicts sama, 3× laju — full-history tanpa-cap dianggar 5+ jam O(n²), dibatalkan).
+
+**Bajet trial**: 19 (demo) + 11 backtest real-8bln + 1 exit-berpasangan real + 4 full-history + 1 validasi-cap + 1 analisis-fee = **37**.
+
+### 10.1 Jadual ablasi (tetingkap 8 bulan, len=6000)
+
+| Konfig | N | WR | EXP (95% CI hampiran) | PF | Nota |
+|---|---|---|---|---|---|
+| BASE | 226 | 24% | −0.04 [−0.20,+0.12] | 0.93 | rujukan |
+| ADX-off | 447 | 23% | −0.05 [−0.17,+0.06] | 0.90 | N×2, EXP sama → KEKAL gate (jimat fee/masa) |
+| LIQ-off (skip TP2-room) | 465 | **48%** | +0.02 [−0.12,+0.16] | 1.05 | WR×2; calon → disahkan §10.2 |
+| P75 | 111 | 26% | +0.05 [−0.17,+0.28] | 1.11 | terbaik single 8bln — TETAPI full-history menolak |
+| P60 | 333 | 26% | +0.01 [−0.12,+0.14] | 1.02 | tiada gain |
+| SMC-off | 268 | 26% | +0.03 [−0.12,+0.18] | 1.06 | lean+ tidak signifikan → KEKAL required |
+| REG-all | 316 | 26% | +0.00 [−0.13,+0.14] | 1.00 | RANGE +18.2R/112 — full-history MENTERBALIKKAN |
+| REG-trend | 25 | 12% | −0.41 [−0.83,+0.01] | 0.40 | trend-only teruk (tetingkap ini; 8thn: +0.13R — tidak stabil) |
+| BASE-recent (3.5 bln terkini) | 113 | 16% | **−0.24 [−0.45,−0.04]** | 0.59 | satu-satunya CI yang eksklusif-0 — semasa negatif |
+| LIQ-off+P75 | 240 | 49% | +0.10 [−0.10,+0.29] | 1.26 | terbaik 8bln — full-history: P75 tambah TIADA |
+| LIQ-off+REG-all | 612 | 47% | +0.02 [−0.10,+0.14] | 1.04 | REG-all tambah tiada |
+
+### 10.2 Full-history (8 tahun) — pengesahan muktamad
+
+| Konfig | N | WR | EXP (95% CI) | PF | Keputusan |
+|---|---|---|---|---|---|
+| BASE | 2120 | 26% | +0.03 [−0.03,+0.09] | 1.06 | **tiada edge** (termasuk 0; fee membunuh) |
+| LIQ-off | 4687 | **51%** | **+0.052 [+0.025,+0.079]** | 1.14 | **edge kecil SIGNIFIKAN** (t≈3.8, p≈0.0001); 9/10 pair + |
+| LIQ-off+P75 | 2659 | 50% | +0.05 [−0.01,+0.11] | 1.12 | P75 tambah TIADA → kekal minProb 70 |
+| REG-all | 2878 | 25% | +0.00 | 1.00 | RANGE −20.4R/915, REVERSAL −15.6R/45 → **regime-smart DIBENARKAN** |
+
+Mekanisme edge LIQ-off: trade yang disekat gate (= SL ketat / pool TP2 dekat) mempunyai kadar-hit TP1 tinggi; enjin exit (50% @TP1 + BE) memonetize mereka. Set LIQ-off: 66% TP2-tercap, median TP2R 1.54, purata trade status-TP2 hanya +0.80R — kemenangan kecil berfrekuensi tinggi, varians rendah (sebab ia signifikan). Anggaran: trade tambahan (bukan-liqOk) ≈ +0.07R setiap satu (hampiran — perbezaan occupancy satu-trade-per-pair).
+
+### 10.3 Corak 8-bulan yang TUMBANG atas 8 tahun (pelajaran overfit)
+
+- **Sesi**: London +0.22R/trade & NY −0.27R (8bln, konsisten 7/7!) → semua sesi ≈ 0 atas 8thn (London+Overlap +0.06 post-hoc, NY ≈ 0). Konsistensi merentas konfig TIDAK melindungi daripada overfit tetingkap (set bertindih). **JANGAN implementasi penapis sesi.**
+- **Pair**: LINK paling teruk 6/7 (8bln) → LINK TERBAIK atas 8thn (+39.8R base, +58.5R liqoff). BTC paling konsisten (+ kedua-dua tetingkap) tetapi lemah. **JANGAN pilih pair.**
+- **Regime**: RANGE +18.2R (8bln) → −20.4R (8thn); TREND_EXPANSION − (8bln) → +0.13R (8thn). **Regime-smart dikekalkan.**
+- **Gred A**: kalah 3/3 full-history + 6/7 8bln (cth −65.1R/625) — **A tidak meramal untung; B ≥ A.** A+ jarang (~2% signal) tetapi tidak pernah negatif 4/4 (suggestive: +1.4/+11.2/+0.7/+15.5R — sampel kecil bertindih, bukan bukti).
+- **NEUTRAL**: +0.08–0.10R dalam 4/4 lensa (+68.7/+82.2/+52.3/+118.2R) — corak terkuat tetapi post-hoc & set bertindih → **perlu pengesahan live**, JANGAN implementasi lagi.
+- **P75**: terbaik 8bln (+0.10) → tiada nilai tambah atas 8thn. Kemenangan pemilihan (best-of-11) — DSR rendah seperti yang diramal teori walk-forward (§1).
+
+### 10.4 Exit berpasangan REAL (N=334 entries, ~330 selesai — BERKUASA,esahkan/betulkan demo N=16)
+
+| Varian | Δ vs base | better/worse | Verdict |
+|---|---|---|---|
+| fulltp1 (bunuh runner) | −0.005 | 31/54 | TIE → **kekal runner** (sah demo) |
+| tp25 (TP2 2.5R) | −0.015 | 12/44 | TIE → **kekal 3.5R+cap** (sah demo) |
+| be08 (BE@0.8R) | +0.019 | 18/7 | TIE/lean+ → verdict demo WORSE (N=16) **DITARIK BALIK**; kekal 1.0 (tidak signifikan) |
+| be12 (BE@1.2R) | −0.021 | 3/13 | lean− → kekal 1.0 |
+| chand/struct (trail pasca-TP1) | −0.047 | 0/11 | **WORSE** (sign-test p≈0.0005) TETAPI reka bentuk capped (trail tidak boleh melepasi TP2 tetap — hanya boleh potong runner awal). Trail TANPA-cap belum diuji. |
+
+### 10.5 Perubahan produk v8.1 (satu-satunya, dari bukti signifikan)
+
+1. **Skip TP2-room DIMATIKAN default** (`liqGateOn=false`; cap TP2 KEKAL): live scan + backtest (kotak kini tidak-checked, label dikemas kini).
+2. Bukti MENOLAK semua perubahan lain: minProb kekal 70 · regime-smart kekal · ADX kekal · SMC-required kekal · BE@1.0 kekal · runner kekal · tiada penapis sesi/pair/regime.
+3. Ujian: 22/22 unit ✓ · `node --check` ✓ · demo pinned (gates-ON eksplisit) N=6/+0.13 ✓ · suis-OFF N=14/+0.28 ✓ (laluan kod sama dengan default baharu — disahkan secara pembinaan).
+
+### 10.6 AMARAN JUJUR: fee & semasa (baca sebelum wang sebenar)
+
+- Analisis fee (n=152 trade real, set liq-off): SL median 1.83% → kos fee **0.055R median (Pionex/futures 0.10% RT)**; 0.11R median (spot 0.20% RT). Edge kasar +0.052R − fee 0.055R ≈ **−0.003R BERSIH** (Pionex) hingga −0.10R (spot tanpa BNB). **Sistem tidak terbukti untung bersih-fee.** Dengan BNB −25%: ≈ −0.006R — breakeven.
+- Tetingkap terkini (Mac–Jun 2025): base −0.24R signifikan; LIQ-off 8bln hanya +0.02. Prestasi semasa MUNGKIN negatif (data berakhir Jul 2025; Sep 2026 tidak diketahui).
+- Backtest ini directional-sahaja; P&L grid sebenar (berbilang fill kecil, maker-fee, redeploy) TIDAK dimodelkan — memerlukan simulator grid D1 sebelum sebarang dakwaan ke atas bot grid.
+- **Syor operasi**: paper-trade dahulu (rekod jurnal live); saiz kecil; JANGAN sangka edge kasar = untung.
+
+### 10.7 Keputusan akhir (ganti §6)
+
+| Status | Item |
+|---|---|
+| ✅ KEKAL (bukti real) | ADX-menaik · regime-smart · minProb 70 · SMC-required · BE@1.0R · runner · TP2-3.5R+cap |
+| ✅ UBAH (signifikan, dilaksanakan v8.1) | **Skip TP2-room OFF default** — cap TP2 kekal |
+| 🔬 PERHATI (suggestive, JANGAN kod) | NEUTRAL-regime lean · London/Overlap lean · A+ sniper-jarang · be08 neutral |
+| ⛔ JANGAN (bukti negatif/overfit) | minProb 75 · regime=all · trend-only · trail-capped · penapis sesi/pair · harap gred A · dakwa untung bersih-fee |
 
 ---
 *Bukan nasihat kewangan. Kajian penerokaan — keputusan strategi memerlukan pengesahan live.*

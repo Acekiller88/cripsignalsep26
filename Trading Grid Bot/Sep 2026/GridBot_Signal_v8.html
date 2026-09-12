@@ -229,7 +229,7 @@ footer{margin-top:24px;padding-top:12px;border-top:1px solid var(--border);color
     </select>
   </div>
   <div class="ctrl-check"><input type="checkbox" id="btUseFilters" checked><span>Guna tetapan semasa (regime/SMC/prob)</span></div>
-  <div class="ctrl-check"><input type="checkbox" id="btLiqGate" checked><span>Tapisan likuiditi P3</span></div>
+  <div class="ctrl-check"><input type="checkbox" id="btLiqGate"><span>Tapisan likuiditi P3 (skip TP2-room — OFF disyor data real)</span></div>
   <div class="ctrl-check"><input type="checkbox" id="btAdxGate" checked><span>Gate ADX menaik P4</span></div>
   <button class="btn" id="btRun" onclick="runBacktest()">▶ JALANKAN BACKTEST</button>
   <span class="cmd-sub" id="btProgress"></span>
@@ -298,7 +298,7 @@ const HTF_MAP={'15m':'4h','1h':'4h','4h':'1d'};
 const KLINE_LIM=300,HTF_LIM=200,SCAN_INT=90000,REQ_DELAY=180,FETCH_TO=14000;
 const FEE_RT=0.10; // % round-trip (taker 0.05% x2) — grid spacing mesti > 2x ini utk untung bersih
 let currentTF='1h',minProb=70,gradeFilter='a',regimeFilter='smart',smcRequired=true;
-let liqGateOn=true,adxGateOn=true; // suis ablasi (panel backtest sahaja; live scan sentiasa ON)
+let liqGateOn=false,adxGateOn=true; // v8.1-data-real: SKIP TP2-room DIMATIKAN default (8thn klines: gate memusnahkan edge kecil +0.05R & WR 26->51%; cap TP2 kekal). Live scan ikut suis ini.
 let autoTimer=null,isScanning=false,scanResults={},failCount=0;
 
 /* ══════════════════ UTIL ══════════════════ */

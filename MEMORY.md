@@ -30,3 +30,9 @@
 - Kajian WR teliti selesai: `Sep 2026/Kajian_WR_Teliti_Sep2026.md` (19 trial demo, funnel, ablasi, exit berpasangan). Rumusan: KEKAL gate ADX/regime/prob70/SMC/BE1.0/runner; UJI LIVE liq-skip, prob75, trail pasca-TP1, TP2-2.5R.
 - Harness pin-masa (Rab 9 Sep 2026 12:00 UTC) — angka demo boleh-ulang. Pelajaran: banding exit mesti BERPASANGAN (headline EXP bias merentas set-resolved berbeza); demo tidak mampu uji trail (0 penglibatan).
 - Seterusnya: TUNGGU 4 angka live pengguna (protokol §7 kajian) sebelum sebarang perubahan strategi v9.
+
+## Kajian data-real Sep 2026 (§10 laporan) — v8.1
+- Data: klines Binance 1H sebenar 2017–2025, 10 pair, 585k candle (via API GitHub; sandbox sekat exchange di TLS). Harness driver_real.js (override genDemoCandles; produk asal). 37 trial.
+- Full-history: BASE +0.03 (tiada edge) · LIQ-off +0.052 [+0.025,+0.079] SIGNIFIKAN, WR 51%, N=4687 · LIQ-off+P75 +0.05 (P75 tambah tiada) · REG-all +0.00 (RANGE −20.4R → regime-smart dibenarkan).
+- Tumbang atas 8thn: penapis sesi/pair (overfit tetingkap) · P75 · gred A<B · RANGE-untung. Kekal: runner, TP2-3.5R+cap, BE@1.0, ADX, SMC-required. Trail-capped WORSE (p≈0.0005).
+- v8.1: skip TP2-room OFF default (cap kekal). AMARAN: fee 0.055R median vs edge +0.052R → bersih ≈ breakeven/negatif; 2025 semasa −0.24R. Paper-trade dahulu.
