@@ -237,5 +237,17 @@ Pengguna membekalkan prompt "Quant Trading System Architect" (fasa berdisiplin, 
 
 **Release checklist v8.4**: node --check ✓ · unit 40/40 ✓ · backtest pinned tidak berubah (N=151/WR43%/EXP−0.14) ✓ · tune e2e lulus ✓ · grep demo kosong ✓.
 
+## 14. v8.5 CLOUD — Fasa 1 infrastruktur (Vercel + Supabase)
+
+Pengguna menyediakan akaun Hostinger (shared) + domain, Vercel, Supabase. Fasa 1 dibina: hosting + cloud sync + lejar paper-trade.
+
+**Hosting**: `vercel.json` (rewrite `/` → dashboard) + `index.html` fallback redirect + `docs/DEPLOY.md` (Vercel auto-deploy + DNS di Hostinger; alternatif upload manual shared hosting). Prinsip: infra tidak mencipta edge — ia menjadikan sistem boleh-dipercayai & boleh-diaudit.
+
+**Cloud sync (Supabase, opt-in, fallback local)**: seksyen ☁ CLOUD SYNC (URL + anon key + fee bps) → setiap signal baharu di-upsert ke `signals`/`journal_trades` + buka paper trade; setiap selesai → jurnal & paper dikemas kini; larian Tune Lab → `tune_runs`. Sambung semula di peranti lain = gabung automatik (rekod selesai menang). Skema + polisi RLS guna-perseorangan: `supabase/schema.sql`; panduan: `supabase/README.md`. Jadual `backtest_runs` disediakan untuk validasi malam (Fasa 2).
+
+**Lejar paper-trade (jawab jurang §10.6 dengan data sebenar)**: setiap signal = paper trade $10 risiko; notional = 10/slPct; fee ikut tetapan (default 5bps sehala, formula feeR selaras §10.6: fee/notional×2/slPct); semasa tutup: netR = grossR − feeR. Kad kelima jurnal: jumlah paper bersih-fee + kasar + fee USD. Berfungsi offline (local) — cloud cuma salinan.
+
+**Ujian**: node --check ✓ · unit 47/47 (7 baharu: sbSignalRow/TradeRow/TuneRow, paperOpen/Close/Stats, sbInit-offline) ✓ · pinned N=151/−0.14 ✓ · tune e2e lulus ✓. Sampingan: expresi rr1 dibersihkan (review) + HTML kalibrasi v8.4 yang cacat (div-dalam-table) dibetulkan.
+
 ---
 *Bukan nasihat kewangan. Kajian penerokaan — keputusan strategi memerlukan pengesahan live.*

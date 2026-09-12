@@ -51,3 +51,9 @@
 - Kad: pecahan keyakinan (asas+SMC+HTF+sesi+derivatif+clamp) + garis invalidasi. Jurnal: jadual kalibrasi jCalib (WR/baldi prob). FGI percuma (paparan sahaja) + medan jurnal.
 - Ditolak: on-chain/berbayar, Python-rewrite, multi-engine, janji WR58-68 (bukti: 26-51%).
 - Ujian: 40/40 (8 baharu); pinned N=151/-0.14; tune e2e lulus. Pepijat ujian (HTF era) dibetulkan.
+
+## v8.5 CLOUD (Fasa 1 infra)
+- Hosting: vercel.json + index.html fallback + docs/DEPLOY.md (Vercel auto-deploy/DNS; Hostinger manual).
+- Supabase opt-in: signals/journal_trades/paper_trades/tune_runs (+backtest_runs utk F2); RLS peribadi; gabung auto; fallback local.
+- Lejar paper: $10 risiko, fee bps setting (default 5), netR=grossR-feeR; kad jurnal ke-5. Formula selaras §10.6.
+- Ujian: 47/47 (7 baharu); pinned N=151/-0.14; tune lulus. Fix: rr1 cleanup + HTML kalibrasi.

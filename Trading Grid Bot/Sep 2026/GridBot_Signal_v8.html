@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GRID SIGNAL v8.4 AUDIT — SMC + Derivatives + Exit Engine (data live sahaja)</title>
+<title>GRID SIGNAL v8.5 CLOUD — SMC + Derivatives + Exit Engine (data live sahaja)</title>
 <style>
 :root{
   --bg:#0b0f19;--card:#151d30;--accent:#1e2942;--border:#263554;
@@ -117,12 +117,13 @@ footer{margin-top:24px;padding-top:12px;border-top:1px solid var(--border);color
 
 <header>
   <div class="logo">
-    <h1>⛭ GRID SIGNAL v8.4</h1>
+    <h1>⛭ GRID SIGNAL v8.5</h1>
     <p>SMC + Derivatives Engine · Exit Engine (BE+Partial) · CHoCH · Protections · Pionex Grid Translator</p>
   </div>
   <div class="hdr-right">
     <div class="pill" id="sessionPill">SESSION: <span id="sessionTxt">—</span></div>
     <div class="pill" id="biasPill">BIAS: <span id="biasTxt">—</span></div>
+    <div class="pill" id="sbPill">Cloud: <span id="sbTxt">OFF</span></div>
     <div class="pill" id="fgiPill">FGI: <span id="fgiTxt">—</span></div>
     <div class="pill" id="statusPill">IDLE</div>
     <button class="btn" id="scanBtn" onclick="startScan()">▶ SCAN PASARAN</button>
@@ -197,6 +198,7 @@ footer{margin-top:24px;padding-top:12px;border-top:1px solid var(--border);color
   <div class="cmd-box"><div class="cmd-label">Expectancy (R)</div><div class="cmd-value" id="jsExp">—</div><div class="cmd-sub">Purata R per signal</div></div>
   <div class="cmd-box"><div class="cmd-label">Profit Factor</div><div class="cmd-value" id="jsPF">—</div><div class="cmd-sub">Jumlah R menang ÷ R kalah</div></div>
   <div class="cmd-box"><div class="cmd-label">Signal Terbuka</div><div class="cmd-value amber" id="jsOpen">0</div><div class="cmd-sub">Menunggu TP / SL</div></div>
+  <div class="cmd-box"><div class="cmd-label">Paper Bersih-Fee</div><div class="cmd-value" id="jsPaper">—</div><div class="cmd-sub" id="jsPaperSub">Lejar paper kosong</div></div>
 </div>
 <div style="overflow-x:auto;margin-bottom:10px">
 <table>
@@ -204,15 +206,14 @@ footer{margin-top:24px;padding-top:12px;border-top:1px solid var(--border);color
   <tbody id="jrnByGrade"><tr><td colspan="7" class="t-dim">Belum ada data — jalankan scan dan biarkan signal matang.</td></tr></tbody>
 </table>
 </div>
-<div style="overflow-x:auto">
-<table>
-  <div class="cmd-sub" style="margin:4px 0">Kalibrasi keyakinan (adakah prob tinggi menang lebih kerap?)</div>
+<div class="cmd-sub" style="margin:4px 0">Kalibrasi keyakinan (adakah prob tinggi menang lebih kerap?)</div>
 <div style="overflow-x:auto;margin-bottom:10px">
 <table>
   <thead><tr><th>Baldi Prob</th><th>Selesai</th><th>Win %</th><th>Jumlah R</th></tr></thead>
   <tbody id="jrnCalib"><tr><td colspan="4" class="t-dim">Belum ada data.</td></tr></tbody>
 </table>
 </div>
+<div class="cmd-sub" style="margin:4px 0">Senarai terkini</div>
 <div style="overflow-x:auto">
 <table>
   <thead><tr><th>Masa</th><th>Pair</th><th>TF</th><th>Arah</th><th>Gred</th><th>Entry</th><th>SL</th><th>TP1</th><th>Status</th><th>R</th><th>MAE/MFE</th></tr></thead>
@@ -277,6 +278,22 @@ footer{margin-top:24px;padding-top:12px;border-top:1px solid var(--border);color
 </div>
 <p class="cmd-sub" style="margin-top:6px">⚠ Nota kejujuran (rujukan jesse-ai): data klines LIVE Binance (tiada data simulasi); replay hanya guna candle ≤ masa keputusan (tiada look-ahead), SL disemak DAHULU dalam candle yang sama (konservatif). v8: SL→BE selepas +1R, 50% separa di TP1; MAE/MFE dalam unit R. Keputusan masa lalu tidak menjamin masa depan. Sampel &lt; 30 signal = belum signifikan.</p>
 
+<div class="sec-title">☁ CLOUD SYNC <span class="sec-badge" id="sbBadge">OFF — local sahaja</span></div>
+<div class="controls">
+  <div class="ctrl" style="flex:2;min-width:200px"><label>Supabase URL</label>
+    <input type="text" id="sbUrl" placeholder="https://xxx.supabase.co" style="background:var(--accent);color:var(--txt);border:1px solid var(--border);border-radius:5px;padding:5px 8px;font-size:13px;width:100%">
+  </div>
+  <div class="ctrl" style="flex:3;min-width:200px"><label>Anon Key</label>
+    <input type="password" id="sbKey" placeholder="eyJ…" style="background:var(--accent);color:var(--txt);border:1px solid var(--border);border-radius:5px;padding:5px 8px;font-size:13px;width:100%">
+  </div>
+  <div class="ctrl"><label>Fee sehala (bps)</label>
+    <input type="number" id="feeBps" value="5" min="0" max="100" style="background:var(--accent);color:var(--txt);border:1px solid var(--border);border-radius:5px;padding:5px 8px;font-size:13px;width:70px">
+  </div>
+  <div class="ctrl"><label>&nbsp;</label>
+    <button class="btn" onclick="sbConnect()">🔗 Sambung</button>
+  </div>
+</div>
+<div class="cmd-sub" style="margin:-2px 0 6px">Setup sekali: <span class="t-dim">supabase/README.md</span> · Tanpa sambungan, semua kekal local (tiada fungsi hilang).</div>
 <div class="sec-title">🧬 TUNE LAB <span class="sec-badge">ejen talaan · percuma · larian tempatan</span></div>
 <div class="controls">
   <div class="ctrl" style="flex:1;min-width:220px"><label>Hipotesis (wajib diisi dahulu — research-first)</label>
@@ -347,13 +364,15 @@ footer{margin-top:24px;padding-top:12px;border-top:1px solid var(--border);color
     <li><b>v8 — TP2 likuiditi:</b> TP2 dihadkan pada pool likuiditi terdekat (equal highs/lows, atau high/low 50-candle HTF) — label <b>"liq🎯"</b> pada kad. Jika tiada ruang 2R ke pool, signal disekat (status matriks "TP2 disekat likuiditi").</li>
     <li><b>v8 — Trigger:</b> <b>ADX mesti menaik</b> (tanda ↑ pada kad) untuk semua signal — memotong whipsaw Supertrend dalam pasaran chop. Entry basi tanpa sweep/displacement kebanyakannya tersingkir oleh tapisan ini.</li>
     <li><b>v8.4 — Audit:</b> setiap kad tunjuk pecahan keyakinan (asas+SMC+HTF+sesi+derivatif) dan syarat invalidasi. Jurnal ada jadual kalibrasi (WR mengikut baldi prob) — semak sama ada prob tinggi benar-benar menang lebih kerap. Pil FGI = sentimen pasaran (paparan sahaja, tidak mengubah signal).</li>
+    <li><b>v8.5 — Cloud:</b> sambung Supabase (setup: supabase/README.md) untuk sync jurnal/signal/Tune + lejar paper-trade bersih-fee ($10 risiko, fee ikut tetapan bps). Kad kelima jurnal tunjuk jumlah paper bersih-fee. Tanpa sambungan, semua kekal local.</li>
   </ol>
 </details>
 
-<footer>GRID SIGNAL v8.4 · v7 + Enjin Exit (BE @+1R, separa TP1, MAE/MFE) + Gred Berpemberat Bukti + TP Likuiditi + Trigger ADX · Rujukan: freqtrade, jesse-ai, smart-money-concepts, MiND-Shot, Lopez de Prado · Bukan nasihat kewangan. DYOR.</footer>
+<footer>GRID SIGNAL v8.5 · v7 + Enjin Exit (BE @+1R, separa TP1, MAE/MFE) + Gred Berpemberat Bukti + TP Likuiditi + Trigger ADX · Rujukan: freqtrade, jesse-ai, smart-money-concepts, MiND-Shot, Lopez de Prado · Bukan nasihat kewangan. DYOR.</footer>
 
 <div id="toast"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* ══════════════════ KONFIGURASI ══════════════════ */
 const PAIRS=['BTCUSDT','ETHUSDT','BNBUSDT','SOLUSDT','XRPUSDT','ADAUSDT','AVAXUSDT','DOGEUSDT','LTCUSDT','LINKUSDT','DOTUSDT','ATOMUSDT','NEARUSDT','APTUSDT','ARBUSDT','OPUSDT','INJUSDT','SUIUSDT','FETUSDT','RENDERUSDT','WLDUSDT','TIAUSDT','SEIUSDT','JUPUSDT','WIFUSDT','TRXUSDT','UNIUSDT','ETCUSDT','XLMUSDT','FILUSDT','AAVEUSDT','ICPUSDT','GRTUSDT','ALGOUSDT','SANDUSDT','MANAUSDT','PEPEUSDT','ORDIUSDT','BONKUSDT','TONUSDT','BCHUSDT','HBARUSDT','STXUSDT','ENAUSDT','SHIBUSDT','POLUSDT','VETUSDT','IMXUSDT','LDOUSDT','RUNEUSDT','CRVUSDT','DYDXUSDT','CHZUSDT','GALAUSDT','EGLDUSDT','FLOWUSDT','THETAUSDT','AXSUSDT','APEUSDT','QNTUSDT','KSMUSDT','NEOUSDT','IOTAUSDT','ZECUSDT','ROSEUSDT','ONEUSDT','CELOUSDT','ANKRUSDT','JASMYUSDT','FLOKIUSDT','ARUSDT','PYTHUSDT','JTOUSDT','STRKUSDT','PENDLEUSDT','WUSDT','TAOUSDT','NOTUSDT','ETHFIUSDT','EIGENUSDT'];
@@ -728,6 +747,79 @@ function gradePasses(grade){
   if(gradeFilter==='b')return grade!=='C';
   return true;
 }
+/* ════════ v8.5: CLOUD SYNC (Supabase) + LEJAR PAPER ════════ */
+const SB={url:'',key:'',client:null,ready:false};
+const PAPER_KEY='gsv85_paper_v1';
+const PAPER_RISK_USD=10; // risiko andaian setiap paper trade (USD)
+function sbBadge(){const b=document.getElementById('sbBadge');if(b)b.textContent=SB.ready?'ON — '+SB.url.replace('https://','').split('.')[0]:'OFF — local sahaja';const t=document.getElementById('sbTxt');if(t)t.textContent=SB.ready?'ON':'OFF';}
+function sbInit(){
+  try{
+    SB.url=localStorage.getItem('gsv85_sb_url')||'';SB.key=localStorage.getItem('gsv85_sb_key')||'';
+    const u=document.getElementById('sbUrl'),k=document.getElementById('sbKey');
+    if(u&&SB.url)u.value=SB.url;if(k&&SB.key)k.value=SB.key;
+    if(SB.url&&SB.key&&typeof supabase!=='undefined'&&supabase.createClient){
+      SB.client=supabase.createClient(SB.url,SB.key);SB.ready=true;sbLoadJournal();
+    }
+  }catch(e){SB.ready=false;}
+  sbBadge();
+}
+async function sbConnect(){
+  SB.url=document.getElementById('sbUrl').value.trim();SB.key=document.getElementById('sbKey').value.trim();
+  if(typeof supabase==='undefined'||!supabase.createClient){showToast('Pustaka Supabase belum dimuat (perlu internet)','err');return;}
+  if(!SB.url||!SB.key){showToast('Isi URL + anon key dahulu','err');return;}
+  try{
+    SB.client=supabase.createClient(SB.url,SB.key);
+    const{error}=await SB.client.from('signals').select('id',{count:'exact',head:true});
+    if(error)throw error;
+    SB.ready=true;
+    localStorage.setItem('gsv85_sb_url',SB.url);localStorage.setItem('gsv85_sb_key',SB.key);
+    sbBadge();sbLoadJournal();showToast('Cloud ON — sync aktif','ok');
+  }catch(e){SB.ready=false;sbBadge();showToast('Gagal sambung: '+(e.message||e),'err');}
+}
+/* --- pembina baris (pure, boleh-diuji) --- */
+function sbSignalRow(rec){return{id:rec.id,ts:new Date(rec.ts).toISOString(),sym:rec.sym,tf:rec.tf,dir:rec.dir,grade:rec.grade,prob:rec.prob,entry:rec.entry,sl:rec.sl,tp1:rec.tp1,tp2:rec.tp2,regime:rec.regime||null,session:rec.session||null,fgi:rec.fgi};}
+function sbTradeRow(t){return{id:t.id,row:t,updated_at:new Date().toISOString()};}
+function sbTuneRow(run){return{ts:new Date(run.ts).toISOString(),mode:run.mode,seed:run.seed,budget:run.budget,scope:run.scope,hypo:run.hypo||null,verdict:run.verdict,winner:run.winner,winner_hold:run.winnerHold,trials:run.trials,baseline:run.baseline};}
+function paperOpenRow(rec,feeBps){feeBps=feeBps||5;
+  const slPct=Math.abs(rec.entry-rec.sl)/Math.max(rec.entry,1e-9);
+  const notion=PAPER_RISK_USD/Math.max(slPct,1e-6);
+  const feeUsd=notion*(feeBps/1e4)*2;
+  return{id:rec.id,sym:rec.sym,dir:rec.dir,entry:rec.entry,sl:rec.sl,notion:+notion.toFixed(2),risk_usd:PAPER_RISK_USD,fee_usd:+feeUsd.toFixed(4),status:'OPEN',opened_at:new Date(rec.ts).toISOString()};
+}
+function paperCloseRow(p,grossR){const netR=grossR-(p.fee_usd/p.risk_usd);return{id:p.id,exit_gross_r:grossR,net_r:+netR.toFixed(4),status:'CLOSED',closed_at:new Date().toISOString()};}
+function paperLoad(){try{return JSON.parse(localStorage.getItem(PAPER_KEY))||[];}catch(e){return[];}}
+function paperSave(a){try{localStorage.setItem(PAPER_KEY,JSON.stringify(a.slice(-500)));}catch(e){}}
+function paperStats(list){const cl=list.filter(p=>p.status==='CLOSED'&&p.net_r!=null);const g=cl.reduce((s,p)=>s+(p.exit_gross_r||0),0);const n=cl.reduce((s,p)=>s+p.net_r,0);const f=cl.reduce((s,p)=>s+(p.fee_usd||0),0);return{n:list.length,closed:cl.length,grossR:+g.toFixed(2),netR:+n.toFixed(2),feesUsd:+f.toFixed(2)};}
+/* --- push ke cloud (fire-and-forget, gagal senyap — local kekal) --- */
+async function sbPush(table,row){if(!SB.ready)return;try{await SB.client.from(table).upsert(row,{onConflict:'id'});}catch(e){}}
+async function sbUpdate(table,id,patch){if(!SB.ready)return;try{await SB.client.from(table).update(patch).eq('id',id);}catch(e){}}
+function sbPushSignal(rec){const row=sbSignalRow(rec);row.rr1=+(Math.abs(rec.tp1-rec.entry)/Math.max(Math.abs(rec.entry-rec.sl),1e-9)).toFixed(2);sbPush('signals',row);}
+function sbUpsertTrade(t){sbPush('journal_trades',sbTradeRow(t));}
+function sbSyncClosed(rows){rows.forEach(t=>{sbUpsertTrade(t);sbPaperClose(t);});}
+async function sbPushTune(run){if(!SB.ready)return;try{await SB.client.from('tune_runs').insert(sbTuneRow(run));}catch(e){}}
+function sbPaperOpen(rec){const P=paperLoad();if(P.some(p=>p.id===rec.id))return;
+  const feeBps=+((document.getElementById('feeBps')||{}).value)||5;
+  const row=paperOpenRow(rec,feeBps);P.push(row);paperSave(P);sbPush('paper_trades',row);
+}
+function sbPaperClose(t){const P=paperLoad();const p=P.find(x=>x.id===t.id);if(!p||p.status==='CLOSED')return;
+  const c=paperCloseRow(p,t.rMult);Object.assign(p,{status:'CLOSED',exit_gross_r:c.exit_gross_r,net_r:c.net_r,closed_at:c.closed_at});
+  paperSave(P);jRender();
+  sbUpdate('paper_trades',p.id,{status:'CLOSED',exit_gross_r:c.exit_gross_r,net_r:c.net_r,closed_at:c.closed_at});
+}
+async function sbLoadJournal(){if(!SB.ready)return;try{
+  const{data,error}=await SB.client.from('journal_trades').select('row').order('updated_at',{ascending:false}).limit(500);
+  if(!error&&data){const byId={};jLoad().forEach(t=>byId[t.id]=t);let added=0;
+    for(const d of data){const t=d.row;if(!t||!t.id)continue;const cur=byId[t.id];
+      if(!cur){byId[t.id]=t;added++;}
+      else if(cur.status==='OPEN'&&t.status!=='OPEN'){byId[t.id]=t;added++;}}
+    if(added){jSave(Object.values(byId).sort((a,b)=>a.ts-b.ts).slice(-500));jRender();showToast('Cloud: '+added+' rekod jurnal digabung','ok');}}
+  const p2=await SB.client.from('paper_trades').select('*').order('opened_at',{ascending:false}).limit(500);
+  if(p2.data){const pm={};paperLoad().forEach(x=>pm[x.id]=x);let pa=0;
+    for(const r of p2.data){const cur=pm[r.id];
+      if(!cur){pm[r.id]={id:r.id,sym:r.sym,dir:r.dir,entry:r.entry,sl:r.sl,notion:r.notion,risk_usd:r.risk_usd,fee_usd:r.fee_usd,status:r.status,exit_gross_r:r.exit_gross_r,net_r:r.net_r,opened_at:r.opened_at,closed_at:r.closed_at};pa++;}
+      else if(cur.status==='OPEN'&&r.status==='CLOSED'){Object.assign(cur,{status:'CLOSED',exit_gross_r:r.exit_gross_r,net_r:r.net_r,closed_at:r.closed_at});pa++;}}
+    if(pa){paperSave(Object.values(pm));jRender();}}
+}catch(e){}}
 let FGI=null;
 function parseFGI(d){try{const v=d&&d.data&&d.data[0];const x=+v.value;if(!isFinite(x))return null;return{value:x,label:v.value_classification||''};}catch(e){return null;}}
 async function fetchFGI(){try{const ctrl=new AbortController();const t=setTimeout(()=>ctrl.abort(),8000);const res=await fetch('https://api.alternative.me/fng/?limit=1',{signal:ctrl.signal,cache:'no-store'});clearTimeout(t);if(!res.ok)throw 0;return parseFGI(await res.json());}catch(e){return null;}}
@@ -952,13 +1044,15 @@ function jRecord(sym,r){
   j.push({id:Date.now()+'-'+sym,ts:Date.now(),sym,tf:currentTF,dir:r.direction,grade:r.grade,prob:r.signalProb,fgi:FGI?FGI.value:null,
     entry:r.entry,sl:isL?r.longSL:r.shortSL,tp1:isL?r.longTP1:r.shortTP1,tp2:isL?r.longTP2:r.shortTP2,
     regime:r.regime,session:r.sessionCtx.session,conf:(isL?r.longQ:r.shortQ).passed,status:'OPEN',res:null,rMult:null,barsOpen:0});
+  const rec=j[j.length-1];
+  sbPushSignal(rec);sbUpsertTrade(rec);sbPaperOpen(rec);
   jSave(j);
 }
 /* Selesaikan signal terbuka guna candle yang baru diambil semasa scan.
    v8: guna Enjin Exit (BE @+1R, 50% separa di TP1, SL disemak DAHULU) + rekod MAE/MFE.
    Rekod lama (status TP1/TP2/SL) tidak disentuh — medan baru ditambah sahaja. */
 function jResolve(sym,candles){
-  const j=jLoad();let changed=false;
+  const j=jLoad();let changed=false;const closedNow=[];
   for(const t of j){
     if(t.sym!==sym||t.status!=='OPEN'||t.tf!==currentTF)continue;
     const after=candles.filter(c=>c.time>t.ts);
@@ -971,7 +1065,7 @@ function jResolve(sym,candles){
         t.status=res.status;t.rMult=res.rMult;
         t.res=res.rMult>0?'WIN':(res.status==='BE'?'BE':'LOSS');
         t.maeR=+t._mae.toFixed(2);t.mfeR=+t._mfe.toFixed(2);
-        changed=true;pMarkClosed(t.sym,res.status==='SL');break;
+        changed=true;pMarkClosed(t.sym,res.status==='SL');closedNow.push(t);break;
       }
     }
     if(t.status==='OPEN'&&after.length>=J_EXPIRE_BARS){
@@ -980,13 +1074,14 @@ function jResolve(sym,candles){
       // baki 50% dinilai pada harga pasaran jika separa-TP1 telah diambil
       t.rMult=t._partial?+(0.5*t._tp1R+0.5*mktR).toFixed(2):+mktR.toFixed(2);
       t.status='EXPIRED';t.res=t.rMult>0?'WIN':'LOSS';
+      closedNow.push(t);
       t.maeR=+t._mae.toFixed(2);t.mfeR=+t._mfe.toFixed(2);changed=true;
     }else if(t.status==='OPEN'&&after.length>0){
       t.maeR=+t._mae.toFixed(2);t.mfeR=+t._mfe.toFixed(2);changed=true; // ekskursi live
     }
     v8CleanExit(t); // medan _* sementara — jangan simpan ke localStorage
   }
-  if(changed)jSave(j);
+  if(changed){jSave(j);sbSyncClosed(closedNow);}
 }
 function calcStats(list){
   const closed=list.filter(t=>t.status!=='OPEN');
@@ -1023,6 +1118,10 @@ function jRender(){
   document.getElementById('jsExp').className='cmd-value '+(s.exp==null?'':s.exp>0?'bull':'bear');
   document.getElementById('jsPF').textContent=fmtPF(s.pf);
   document.getElementById('jsOpen').textContent=s.open;
+  const ps=paperStats(paperLoad());
+  document.getElementById('jsPaper').textContent=ps.closed?(ps.netR>0?'+':'')+ps.netR.toFixed(1)+'R':'—';
+  document.getElementById('jsPaper').className='cmd-value '+(ps.closed?(ps.netR>0?'bull':'bear'):'');
+  document.getElementById('jsPaperSub').textContent=ps.closed?`${ps.closed} selesai · kasar ${ps.grossR>0?'+':''}${ps.grossR.toFixed(1)}R · fee $${ps.feesUsd}`:'Lejar paper kosong';
   // ikut gred
   const grades=['A+','A','B','C'];
   const rows=grades.map(g=>{
@@ -1343,6 +1442,7 @@ async function runTuneLab(){
       trials:rows.map(r=>({cfg:r.cfg,train:r.train,hold:r.hold,verdict:r.verdict})),winner:tuneWinner,
       winnerHold:win?+win.hold.exp.toFixed(3):null,verdict});
     tuneSave(j);tuneRenderJournal();
+    sbPushTune(j.runs[j.runs.length-1]);
     const fmtPF=p=>p==null?'—':p===Infinity?'∞':p.toFixed(2);
     document.getElementById('tuneRows').innerHTML=rows.map((r,k)=>{
       const c=r.cfg;
@@ -1400,7 +1500,7 @@ function tuneClear(){
   localStorage.removeItem(TUNE_KEY);tuneRenderJournal();showToast('Jurnal dipadam','ok');
 }
 
-updateSessionUI();setInterval(updateSessionUI,60000);initMatrix();jRender();tuneRenderJournal();
+updateSessionUI();setInterval(updateSessionUI,60000);initMatrix();jRender();tuneRenderJournal();sbInit();
 </script>
 </body>
 </html>

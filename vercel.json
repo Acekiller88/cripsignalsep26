@@ -1,0 +1,5 @@
+{
+  "rewrites": [
+    { "source": "/", "destination": "/Trading%20Grid%20Bot/Sep%202026/GridBot_Signal_v8.html" }
+  ]
+}
