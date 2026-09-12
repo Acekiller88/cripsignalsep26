@@ -229,9 +229,12 @@ footer{margin-top:24px;padding-top:12px;border-top:1px solid var(--border);color
     </select>
   </div>
   <div class="ctrl-check"><input type="checkbox" id="btUseFilters" checked><span>Guna tetapan semasa (regime/SMC/prob)</span></div>
+  <div class="ctrl-check"><input type="checkbox" id="btLiqGate" checked><span>Tapisan likuiditi P3</span></div>
+  <div class="ctrl-check"><input type="checkbox" id="btAdxGate" checked><span>Gate ADX menaik P4</span></div>
   <button class="btn" id="btRun" onclick="runBacktest()">▶ JALANKAN BACKTEST</button>
   <span class="cmd-sub" id="btProgress"></span>
 </div>
+<div class="cmd-sub" id="btFunnel" style="margin:2px 0 6px"></div>
 <div class="cmd-grid" id="btStats" style="display:none">
   <div class="cmd-box"><div class="cmd-label">Jumlah Signal</div><div class="cmd-value" id="btN">0</div><div class="cmd-sub" id="btNsub">—</div></div>
   <div class="cmd-box"><div class="cmd-label">Win Rate</div><div class="cmd-value" id="btWR">—</div><div class="cmd-sub">TP1/TP2 vs SL</div></div>
@@ -248,6 +251,19 @@ footer{margin-top:24px;padding-top:12px;border-top:1px solid var(--border);color
 <table>
   <thead><tr><th>Pair</th><th>Signal</th><th>W/L</th><th>Jumlah R</th></tr></thead>
   <tbody id="btByPair"></tbody>
+</table>
+</div>
+<div class="sec-title" style="font-size:13px">⏱ PECAHAN SESI & REGIME <span class="sec-badge">diagnostik</span></div>
+<div style="overflow-x:auto;margin-bottom:8px">
+<table>
+  <thead><tr><th>Sesi</th><th>Signal</th><th>Win %</th><th>Jumlah R</th></tr></thead>
+  <tbody id="btBySess"><tr><td colspan="4" class="t-dim">—</td></tr></tbody>
+</table>
+</div>
+<div style="overflow-x:auto">
+<table>
+  <thead><tr><th>Regime</th><th>Signal</th><th>Win %</th><th>Jumlah R</th></tr></thead>
+  <tbody id="btByReg"><tr><td colspan="4" class="t-dim">—</td></tr></tbody>
 </table>
 </div>
 <p class="cmd-sub" style="margin-top:6px">⚠ Nota kejujuran (rujukan jesse-ai): replay hanya guna candle ≤ masa keputusan (tiada look-ahead), SL disemak DAHULU dalam candle yang sama (konservatif). v8: SL→BE selepas +1R, 50% separa di TP1; MAE/MFE dalam unit R. Keputusan masa lalu tidak menjamin masa depan. Sampel &lt; 30 signal = belum signifikan.</p>
@@ -282,6 +298,7 @@ const HTF_MAP={'15m':'4h','1h':'4h','4h':'1d'};
 const KLINE_LIM=300,HTF_LIM=200,SCAN_INT=90000,REQ_DELAY=180,FETCH_TO=14000;
 const FEE_RT=0.10; // % round-trip (taker 0.05% x2) — grid spacing mesti > 2x ini utk untung bersih
 let currentTF='1h',minProb=70,gradeFilter='a',regimeFilter='smart',smcRequired=true;
+let liqGateOn=true,adxGateOn=true; // suis ablasi (panel backtest sahaja; live scan sentiasa ON)
 let autoTimer=null,isScanning=false,scanResults={},failCount=0;
 
 /* ══════════════════ UTIL ══════════════════ */
@@ -671,8 +688,8 @@ function analyzeCandles(candles,htfCandles,probThreshold,atTime,derivs){
   else if(dLong.extreme||dShort.extreme){blacklisted=true;blkReason=`Funding melampau (${derivs.funding.toFixed(3)}%/8j) — risiko squeeze dua hala`;}
 
   const smcOkL=!smcRequired||longQ.isB;const smcOkS=!smcRequired||shortQ.isB;
-  const longSignal=!blacklisted&&stBull&&longProb>=probThreshold&&regimeTradeable&&rsiVal>30&&rsiVal<72&&longRR>=2.0&&smcOkL&&(htfBull||!smcRequired)&&liqOkL&&adxRising;
-  const shortSignal=!blacklisted&&stBear&&shortProb>=probThreshold&&regimeTradeable&&rsiVal<70&&rsiVal>28&&shortRR>=2.0&&smcOkS&&(htfBear||!smcRequired)&&liqOkS&&adxRising;
+  const longSignal=!blacklisted&&stBull&&longProb>=probThreshold&&regimeTradeable&&rsiVal>30&&rsiVal<72&&longRR>=2.0&&smcOkL&&(htfBull||!smcRequired)&&(liqGateOn?liqOkL:true)&&(adxGateOn?adxRising:true);
+  const shortSignal=!blacklisted&&stBear&&shortProb>=probThreshold&&regimeTradeable&&rsiVal<70&&rsiVal>28&&shortRR>=2.0&&smcOkS&&(htfBear||!smcRequired)&&(liqGateOn?liqOkS:true)&&(adxGateOn?adxRising:true);
 
   let direction=null,signalProb=0;
   if(longSignal&&(!shortSignal||longProb>=shortProb)){direction='LONG';signalProb=longProb;}
@@ -1006,6 +1023,24 @@ function jClear(){
 
 /* ══════════════════ FASA 1B: BACKTEST REPLAY (walk-forward) ══════════════════ */
 let btRunning=false;
+function btFunnelCount(FUN,r){
+  for(const isL of [true,false]){
+    if(!(isL?r.stBull:r.stBear))continue;
+    FUN.trend++;
+    if(r.blacklisted)continue;FUN.blk++;
+    const rt=regimeFilter==='all'||(regimeFilter==='smart'&&r.regimeObj.tradeable)||(regimeFilter==='trend'&&r.regime==='TREND_EXPANSION');
+    if(!rt)continue;FUN.reg++;
+    const Q=isL?r.longQ:r.shortQ;
+    if(smcRequired&&!Q.isB)continue;FUN.smc++;
+    if(smcRequired&&!(isL?r.htfBull:r.htfBear))continue;FUN.htf++;
+    if((isL?r.longProb:r.shortProb)<minProb)continue;FUN.prob++;
+    const rsiOk=isL?(r.rsiVal>30&&r.rsiVal<72):(r.rsiVal<70&&r.rsiVal>28);
+    if(!rsiOk)continue;FUN.rsi++;
+    if(liqGateOn&&!(isL?r.liqOkL:r.liqOkS))continue;FUN.liq++;
+    if(adxGateOn&&!r.adxRising)continue;FUN.adx++;
+    FUN.sig++;
+  }
+}
 async function runBacktest(){
   if(btRunning||isScanning){showToast('Tunggu proses semasa selesai','err');return;}
   btRunning=true;
@@ -1015,9 +1050,12 @@ async function runBacktest(){
   const useFilters=document.getElementById('btUseFilters').checked;
   const prog=document.getElementById('btProgress');
   // simpan & pinda tetapan global sementara jika tak guna filter semasa
-  const saved={regimeFilter,smcRequired,minProb};
+  const saved={regimeFilter,smcRequired,minProb,liqGateOn,adxGateOn};
+  liqGateOn=document.getElementById('btLiqGate').checked;
+  adxGateOn=document.getElementById('btAdxGate').checked;
   if(!useFilters){regimeFilter='smart';smcRequired=true;minProb=70;}
   const trades=[];const pairs=PAIRS.slice(0,scope);
+  const FUN={trend:0,blk:0,reg:0,smc:0,htf:0,prob:0,rsi:0,liq:0,adx:0,sig:0};
   const WARMUP=160;
   try{
     for(let pi=0;pi<pairs.length;pi++){
@@ -1045,9 +1083,11 @@ async function runBacktest(){
         const htfSlice=htf.filter(h=>h.time<=c.time);
         if(htfSlice.length<60)continue;
         const r=analyzeCandles(ltfSlice,htfSlice,minProb,c.time);
+        if(r)btFunnelCount(FUN,r);
         if(r&&r.direction&&r.grade){
           const isL=r.direction==='LONG';
           openTrade={sym,dir:r.direction,grade:r.grade,entry:r.entry,openIdx:i,
+            sess:getSessionCtx(new Date(c.time)).session,regime:r.regime,
             sl:isL?r.longSL:r.shortSL,tp1:isL?r.longTP1:r.shortTP1,tp2:isL?r.longTP2:r.shortTP2};
           v8InitExit(openTrade);
         }
@@ -1057,13 +1097,13 @@ async function runBacktest(){
       await sleep(10);
     }
   }finally{
-    regimeFilter=saved.regimeFilter;smcRequired=saved.smcRequired;minProb=saved.minProb;
+    regimeFilter=saved.regimeFilter;smcRequired=saved.smcRequired;minProb=saved.minProb;liqGateOn=saved.liqGateOn;adxGateOn=saved.adxGateOn;
     btn.disabled=false;btn.classList.remove('scanning');btRunning=false;
   }
   prog.textContent='Selesai ✓';
-  renderBacktest(trades,tf,pairs.length);
+  renderBacktest(trades,tf,pairs.length,FUN);
 }
-function renderBacktest(trades,tf,nPairs){
+function renderBacktest(trades,tf,nPairs,FUN){
   const closed=trades.filter(t=>t.status!=='OPEN@END');
   document.getElementById('btStats').style.display='';
   const wins=closed.filter(t=>t.rMult>0),losses=closed.filter(t=>t.rMult<=0);
@@ -1105,6 +1145,18 @@ function renderBacktest(trades,tf,nPairs){
     .sort((a,b)=>b.sR-a.sR)
     .map(x=>`<tr><td style="font-weight:700">${x.sym.replace('USDT','')}</td><td>${x.n}</td><td><span class="t-win">${x.w}</span> / <span class="t-loss">${x.l}</span></td><td class="${x.sR>=0?'t-win':'t-loss'}">${x.sR>0?'+':''}${x.sR.toFixed(1)}R</td></tr>`)
     .join('')||'<tr><td colspan="4" class="t-dim">—</td></tr>';
+  // v8-kajian: funnel tapisan + pecahan sesi/regime
+  if(FUN){
+    const seg=v=>v.toLocaleString('en-US');
+    document.getElementById('btFunnel').innerHTML=`🔻 <b>Funnel</b> (side-steps): trend ${seg(FUN.trend)} → blacklist-lepas ${seg(FUN.blk)} → regime ${seg(FUN.reg)} → SMC≥B ${seg(FUN.smc)} → HTF ${seg(FUN.htf)} → prob ${seg(FUN.prob)} → RSI ${seg(FUN.rsi)} → liq ${seg(FUN.liq)} → ADX ${seg(FUN.adx)} → <b>SIGNAL ${seg(FUN.sig)}</b>`;
+  }
+  const byKey=k=>{const m={};closed.forEach(t=>{const kk=t[k]||'?';(m[kk]??=[]).push(t);});return m;};
+  const mkRows=m=>Object.entries(m).map(([k,ts])=>{
+    const w=ts.filter(t=>t.rMult>0).length,sR=ts.reduce((s,t)=>s+t.rMult,0);
+    return`<tr><td>${k}</td><td>${ts.length}</td><td>${(100*w/ts.length).toFixed(0)}%</td><td class="${sR>=0?'t-win':'t-loss'}">${sR>0?'+':''}${sR.toFixed(1)}R</td></tr>`;
+  }).join('')||'<tr><td colspan="4" class="t-dim">—</td></tr>';
+  document.getElementById('btBySess').innerHTML=mkRows(byKey('sess'));
+  document.getElementById('btByReg').innerHTML=mkRows(byKey('regime'));
   showToast(`Backtest siap — ${closed.length} signal dinilai`,'ok');
 }
 

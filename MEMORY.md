@@ -26,6 +26,7 @@
 1. `node --check` ke atas JS yang diekstrak. 2. Unit test (semasa: 22) lulus. 3. Backtest demo ≥20 pair: N>0, tiada NaN, R betul. 4. Ujian jurnal: rekod lama tidak pecah, tiada medan `_` bocor. 5. Semak diff — tiada perubahan luar skop.
 
 ## 5. Status & langkah seterusnya
-- v8 (P1–P4) siap + PR #2 dibuka (12 Sep 2026). Merit sebenar menunggu backtest live pengguna (sasaran: WR ≥38%, EXP ≥+0.10R, PF ≥1.2, SL <55%, gred tidak terbalik).
-- Seterusnya (ikut Roadmap v9): Fasa A (funnel + sesi/regime) → Fasa B (varian exit) → Fasa C/D.
-- Harness ujian masih di luar repo (`/home/user/v8test/`) — cadang G1: pindahkan ke `Sep 2026/tests/`.
+- v8 (P1–P4) + instrumentasi kajian (funnel, BYSESS/BYREG, suis ablasi liq/ADX) siap + diuji (12 Sep 2026). PR #2 dibuka.
+- Kajian WR teliti selesai: `Sep 2026/Kajian_WR_Teliti_Sep2026.md` (19 trial demo, funnel, ablasi, exit berpasangan). Rumusan: KEKAL gate ADX/regime/prob70/SMC/BE1.0/runner; UJI LIVE liq-skip, prob75, trail pasca-TP1, TP2-2.5R.
+- Harness pin-masa (Rab 9 Sep 2026 12:00 UTC) — angka demo boleh-ulang. Pelajaran: banding exit mesti BERPASANGAN (headline EXP bias merentas set-resolved berbeza); demo tidak mampu uji trail (0 penglibatan).
+- Seterusnya: TUNGGU 4 angka live pengguna (protokol §7 kajian) sebelum sebarang perubahan strategi v9.
