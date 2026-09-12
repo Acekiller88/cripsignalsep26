@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GRID SIGNAL v8.2 LIVE — SMC + Derivatives + Exit Engine (data live sahaja)</title>
+<title>GRID SIGNAL v8.3 TUNE — SMC + Derivatives + Exit Engine (data live sahaja)</title>
 <style>
 :root{
   --bg:#0b0f19;--card:#151d30;--accent:#1e2942;--border:#263554;
@@ -117,7 +117,7 @@ footer{margin-top:24px;padding-top:12px;border-top:1px solid var(--border);color
 
 <header>
   <div class="logo">
-    <h1>⛭ GRID SIGNAL v8.2</h1>
+    <h1>⛭ GRID SIGNAL v8.3</h1>
     <p>SMC + Derivatives Engine · Exit Engine (BE+Partial) · CHoCH · Protections · Pionex Grid Translator</p>
   </div>
   <div class="hdr-right">
@@ -267,6 +267,59 @@ footer{margin-top:24px;padding-top:12px;border-top:1px solid var(--border);color
 </div>
 <p class="cmd-sub" style="margin-top:6px">⚠ Nota kejujuran (rujukan jesse-ai): data klines LIVE Binance (tiada data simulasi); replay hanya guna candle ≤ masa keputusan (tiada look-ahead), SL disemak DAHULU dalam candle yang sama (konservatif). v8: SL→BE selepas +1R, 50% separa di TP1; MAE/MFE dalam unit R. Keputusan masa lalu tidak menjamin masa depan. Sampel &lt; 30 signal = belum signifikan.</p>
 
+<div class="sec-title">🧬 TUNE LAB <span class="sec-badge">ejen talaan · percuma · larian tempatan</span></div>
+<div class="controls">
+  <div class="ctrl" style="flex:1;min-width:220px"><label>Hipotesis (wajib diisi dahulu — research-first)</label>
+    <input type="text" id="tuneHypo" placeholder="cth: minProb 75 + regime smart lebih baik dalam chop" style="background:var(--accent);color:var(--txt);border:1px solid var(--border);border-radius:5px;padding:5px 8px;font-size:13px">
+  </div>
+  <div class="ctrl"><label>Skop Pair</label>
+    <select id="tuneScope"><option value="10" selected>10 pair</option><option value="20">20 pair</option><option value="40">40 pair</option></select>
+  </div>
+  <div class="ctrl"><label>Bajet Trial (maks 12)</label>
+    <select id="tuneBudget"><option value="4">4</option><option value="8">8</option><option value="12" selected>12 (semua)</option></select>
+  </div>
+  <div class="ctrl"><label>Seed</label>
+    <input type="number" id="tuneSeed" value="7" min="1" max="9999" style="background:var(--accent);color:var(--txt);border:1px solid var(--border);border-radius:5px;padding:5px 8px;font-size:13px;width:80px">
+  </div>
+  <div class="ctrl"><label>Mod Cadangan</label>
+    <select id="tuneMode" onchange="tuneModeUI()"><option value="rawak" selected>Rawak (tiada LLM)</option><option value="llm">LLM tempatan (Ollama/LM Studio)</option></select>
+  </div>
+  <div class="ctrl tune-llm" style="display:none"><label>Endpoint LLM</label>
+    <input type="text" id="tuneEndpoint" value="http://localhost:11434" style="background:var(--accent);color:var(--txt);border:1px solid var(--border);border-radius:5px;padding:5px 8px;font-size:13px">
+  </div>
+  <div class="ctrl tune-llm" style="display:none"><label>Model</label>
+    <input type="text" id="tuneModel" value="qwen3:8b" style="background:var(--accent);color:var(--txt);border:1px solid var(--border);border-radius:5px;padding:5px 8px;font-size:13px;width:110px">
+  </div>
+  <div class="ctrl tune-llm" style="display:none"><label>Format API</label>
+    <select id="tuneKind"><option value="ollama" selected>Ollama /api/chat</option><option value="openai">OpenAI-serasi /v1</option></select>
+  </div>
+  <button class="btn" id="tuneRun" onclick="runTuneLab()">▶ JALANKAN TUNE LAB</button>
+  <span class="cmd-sub" id="tuneProgress"></span>
+</div>
+<p class="cmd-sub">Ruang carian (12 kombo): minProb {65,70,75} × regime {smart,all} × SMC {wajib,tidak}. liq-OFF & ADX-ON dikunci (bukti kajian §10). Split 70/30 (train/holdout) · Gate: SELECT (N≥15, PF≥1, EXP&gt;baseline) → CONFIRM top-3 (N≥8, EXP&gt;baseline, EXP&gt;0) → menang/rollback. Jurnal direkod termasuk kegagalan. LLM: pasang Ollama percuma (`ollama pull qwen3:8b`) atau LM Studio — butiran dalam `skills/tune-analyst.md`.</p>
+<div class="cmd-sub" id="tuneOut" style="margin:2px 0 6px"></div>
+<div style="overflow-x:auto;margin-bottom:8px">
+<table>
+  <thead><tr><th>#</th><th>Konfig</th><th>Train N/EXP/PF</th><th>Holdout N/EXP</th><th>Keputusan</th></tr></thead>
+  <tbody id="tuneRows"><tr><td colspan="5" class="t-dim">Belum dijalankan.</td></tr></tbody>
+</table>
+</div>
+<div class="sec-title" style="font-size:13px">🧠 JURNAL TALAAN <span class="sec-badge">memori ejen</span>
+  <span style="margin-left:auto;display:flex;gap:8px">
+    <button class="btn mini" onclick="tuneExport()">⬇ Export</button>
+    <button class="btn mini" onclick="document.getElementById('tuneImportFile').click()">⬆ Import</button>
+    <input type="file" id="tuneImportFile" accept=".json" style="display:none" onchange="tuneImport(this)">
+    <button class="btn mini danger" onclick="tuneClear()">🗑 Padam</button>
+    <button class="btn mini" id="tuneApply" onclick="tuneApplyWinner()" disabled>Guna Tetapan Pemenang</button>
+  </span>
+</div>
+<div style="overflow-x:auto">
+<table>
+  <thead><tr><th>Masa</th><th>Hipotesis</th><th>Mod/Bajet</th><th>Baseline→Pemenang</th><th>Verdict</th></tr></thead>
+  <tbody id="tuneJrnRows"><tr><td colspan="5" class="t-dim">Jurnal kosong.</td></tr></tbody>
+</table>
+</div>
+
 <details class="manual">
   <summary>📖 Panduan Ringkas — Signal → Grid Bot Pionex (SOP v8)</summary>
   <ol>
@@ -286,7 +339,7 @@ footer{margin-top:24px;padding-top:12px;border-top:1px solid var(--border);color
   </ol>
 </details>
 
-<footer>GRID SIGNAL v8.2 · v7 + Enjin Exit (BE @+1R, separa TP1, MAE/MFE) + Gred Berpemberat Bukti + TP Likuiditi + Trigger ADX · Rujukan: freqtrade, jesse-ai, smart-money-concepts, MiND-Shot, Lopez de Prado · Bukan nasihat kewangan. DYOR.</footer>
+<footer>GRID SIGNAL v8.3 · v7 + Enjin Exit (BE @+1R, separa TP1, MAE/MFE) + Gred Berpemberat Bukti + TP Likuiditi + Trigger ADX · Rujukan: freqtrade, jesse-ai, smart-money-concepts, MiND-Shot, Lopez de Prado · Bukan nasihat kewangan. DYOR.</footer>
 
 <div id="toast"></div>
 
@@ -1107,7 +1160,212 @@ function renderBacktest(trades,tf,nPairs,FUN){
   showToast(`Backtest siap — ${closed.length} signal dinilai`,'ok');
 }
 
-updateSessionUI();setInterval(updateSessionUI,60000);initMatrix();jRender();
+/* ══════════ v8.3 TUNE LAB — ejen talaan deterministik + LLM tempatan (percuma) ══════════
+   Reka bentuk (rujukan: ECC skills/memory/research-first; autobacktest two-phase gate):
+   hipotesis pra-daftar → jana calon (rawak berseed / LLM+lessons) → SELECT atas train →
+   CONFIRM top-3 atas holdout → menang atau rollback. Semua direkod dalam jurnal (termasuk gagal).
+   Kosongkan pergantungan luar: carian & gate 100% tempatan; LLM opsyenal (Ollama/LM Studio localhost). */
+const TUNE_KEY='gsv83_tune_journal_v1';
+const TUNE_SPACE={minProb:[65,70,75],regime:['smart','all'],smc:[true,false]};
+const TUNE_GATE={selN:15,selPF:1.0,confN:8};
+const TUNE_SKILL='Anda penganalisis strategi kuantitatif. MASUKAN: ruang carian (12 kombo minProb/regime/smc), pengajaran larian lepas, bajet. TUGAS: cadangkan tepat <bajet> konfigurasi BERBEZA untuk backtest train/holdout. PERATURAN: (1) Hanya nilai dari space. (2) Output HANYA JSON {"candidates":[{minProb,regime,smc}]}. (3) Utamakan kombo belum diuji; elak ulang kegagalan lepas. (4) Jangan ulas di luar JSON. (5) Jika tiada idea, pulangkan rawak dari space.';
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function tuneMulberry(seed){let a=seed>>>0;return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function tuneGrid(){const g=[];for(const mp of TUNE_SPACE.minProb)for(const rg of TUNE_SPACE.regime)for(const sm of TUNE_SPACE.smc)g.push({minProb:mp,regime:rg,smc:sm});return g;}
+function tuneSample(budget,seed){const g=tuneGrid(),rnd=tuneMulberry(seed);for(let i=g.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[g[i],g[j]]=[g[j],g[i]];}return g.slice(0,Math.min(budget,g.length));}
+function tuneLoad(){try{return JSON.parse(localStorage.getItem(TUNE_KEY))||{v:1,runs:[]};}catch(e){return{v:1,runs:[]};}}
+function tuneSave(j){try{localStorage.setItem(TUNE_KEY,JSON.stringify({v:1,runs:j.runs.slice(-50)}));}catch(e){}}
+function tuneLessons(){
+  const j=tuneLoad().runs.slice(-3);if(!j.length)return'Tiada larian lepas.';
+  return j.map((r,i)=>`Larian ${i+1} [${new Date(r.ts).toLocaleString('ms-MY')}]: hipotesis="${r.hypo}" → ${r.verdict}`+
+    (r.winner?` Pemenang: minProb${r.winner.minProb}/${r.winner.regime}/smc${r.winner.smc?'ON':'OFF'} (holdout EXP ${r.winnerHold})`:'')).join('\n');
+}
+/* Nilaikan satu konfig atas hirisan langkah [i0,i1) — replika logik runBacktest (satu trade/pair, exit v8). */
+function tuneEvaluate(pairsData,cfg,i0,i1){
+  const saved={regimeFilter,smcRequired,minProb,liqGateOn,adxGateOn};
+  regimeFilter=cfg.regime;smcRequired=cfg.smc;minProb=cfg.minProb;liqGateOn=false;adxGateOn=true;
+  const trades=[];
+  try{
+    for(const{sym,ltf,htf}of pairsData){
+      let openTrade=null;
+      for(let i=i0;i<Math.min(i1,ltf.length);i++){
+        const c=ltf[i];
+        if(openTrade){const res=v8StepExit(openTrade,c);if(res){openTrade.status=res.status;openTrade.rMult=res.rMult;v8CleanExit(openTrade);trades.push(openTrade);openTrade=null;}else continue;}
+        const htfSlice=htf.filter(h=>h.time<=c.time);
+        if(htfSlice.length<60)continue;
+        const r=analyzeCandles(ltf.slice(Math.max(0,i-999),i+1),htfSlice,minProb,c.time);
+        if(r&&r.direction&&r.grade){
+          const isL=r.direction==='LONG';
+          openTrade={sym,dir:r.direction,grade:r.grade,entry:r.entry,sl:isL?r.longSL:r.shortSL,tp1:isL?r.longTP1:r.shortTP1,tp2:isL?r.longTP2:r.shortTP2};
+          v8InitExit(openTrade);
+        }
+      }
+      if(openTrade)v8CleanExit(openTrade); // tergantung di hujung hirisan: abaikan (elak bocor merentas split)
+    }
+  }finally{regimeFilter=saved.regimeFilter;smcRequired=saved.smcRequired;minProb=saved.minProb;liqGateOn=saved.liqGateOn;adxGateOn=saved.adxGateOn;}
+  const wins=trades.filter(t=>t.rMult>0);
+  const sumR=trades.reduce((s,t)=>s+t.rMult,0);
+  const gw=wins.reduce((s,t)=>s+t.rMult,0),gl=Math.abs(trades.filter(t=>t.rMult<=0).reduce((s,t)=>s+t.rMult,0));
+  return{n:trades.length,wr:trades.length?wins.length/trades.length*100:null,exp:trades.length?sumR/trades.length:null,pf:gl>0?gw/gl:(gw>0?Infinity:null),sumR};
+}
+async function tuneLLM(cands_needed,lessons){
+  const ep=document.getElementById('tuneEndpoint').value.replace(/\/+$/,'');
+  const model=document.getElementById('tuneModel').value||'qwen3:8b';
+  const kind=document.getElementById('tuneKind').value;
+  const user={space:TUNE_SPACE,lessons,budget:cands_needed,
+    instruction:'Cadangkan tepat '+cands_needed+' konfigurasi berbeza sebagai JSON {"candidates":[{minProb,regime,smc},...]}. Guna NILAI dari space sahaja.'};
+  const ctrl=new AbortController();const to=setTimeout(()=>ctrl.abort(),120000);
+  try{
+    let url,body;
+    if(kind==='ollama'){url=ep+'/api/chat';body={model,messages:[{role:'system',content:TUNE_SKILL},{role:'user',content:JSON.stringify(user)}],stream:false,format:'json'};}
+    else{url=ep+'/v1/chat/completions';body={model,messages:[{role:'system',content:TUNE_SKILL},{role:'user',content:JSON.stringify(user)}],response_format:{type:'json_object'}};}
+    const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:ctrl.signal});
+    clearTimeout(to);
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    const txt=kind==='ollama'?data.message.content:data.choices[0].message.content;
+    const parsed=JSON.parse(txt);
+    const out=[];
+    for(const c of (parsed.candidates||[])){
+      if(!c||!TUNE_SPACE.minProb.includes(c.minProb)||!TUNE_SPACE.regime.includes(c.regime)||typeof c.smc!=='boolean')continue;
+      if(out.some(o=>o.minProb===c.minProb&&o.regime===c.regime&&o.smc===c.smc))continue;
+      out.push({minProb:c.minProb,regime:c.regime,smc:c.smc});
+      if(out.length>=cands_needed)break;
+    }
+    return out;
+  }catch(e){clearTimeout(to);throw e;}
+}
+let tuneRunning=false,tuneWinner=null;
+async function runTuneLab(){
+  if(tuneRunning||btRunning||isScanning){showToast('Tunggu proses semasa selesai','err');return;}
+  const hypo=document.getElementById('tuneHypo').value.trim();
+  if(!hypo){showToast('Isi HIPOTESIS dahulu (research-first)','err');document.getElementById('tuneHypo').focus();return;}
+  tuneRunning=true;tuneWinner=null;
+  document.getElementById('tuneApply').disabled=true;
+  const btn=document.getElementById('tuneRun');btn.disabled=true;btn.classList.add('scanning');
+  const prog=document.getElementById('tuneProgress');
+  const scope=+document.getElementById('tuneScope').value;
+  const budget=Math.max(1,Math.min(12,+document.getElementById('tuneBudget').value||12));
+  const seed=+document.getElementById('tuneSeed').value||7;
+  const mode=document.getElementById('tuneMode').value;
+  const WARMUP=160;
+  try{
+    prog.textContent='Menarik data live…';
+    const pairs=PAIRS.slice(0,scope),pairsData=[];
+    for(const sym of pairs){
+      try{
+        const[ltf,htf]=await Promise.all([fetchKlines(sym,'1h',KLINE_LIM),fetchKlines(sym,HTF_MAP['1h'],HTF_LIM)]);
+        if(ltf&&ltf.length>WARMUP+20)pairsData.push({sym,ltf,htf});
+      }catch(e){}
+      await sleep(REQ_DELAY);
+    }
+    if(!pairsData.length){showToast('Tiada data — semak sambungan internet/VPN','err');return;}
+    const nSteps=Math.min(...pairsData.map(d=>d.ltf.length));
+    const iSplit=WARMUP+Math.round((nSteps-WARMUP)*0.7);
+    const base={minProb:70,regime:'smart',smc:true};
+    prog.textContent='Baseline…';
+    await sleep(0);
+    const bT=tuneEvaluate(pairsData,base,WARMUP,iSplit);
+    const bH=tuneEvaluate(pairsData,base,iSplit,nSteps);
+    let cands=[];
+    if(mode==='llm'){
+      prog.textContent='LLM mencadangkan…';
+      try{cands=await tuneLLM(budget,tuneLessons());}
+      catch(e){showToast('LLM tidak dapat dihubungi — fallback rawak. Pasang Ollama (lihat skills/tune-analyst.md).','err');}
+      if(!cands.length)cands=tuneSample(budget,seed);
+      else{
+        const extra=tuneSample(12,seed+1).filter(c=>!cands.some(o=>o.minProb===c.minProb&&o.regime===c.regime&&o.smc===c.smc));
+        while(cands.length<budget&&extra.length)cands.push(extra.shift());
+      }
+    }else cands=tuneSample(budget,seed);
+    const rows=[];
+    for(let k=0;k<cands.length;k++){
+      prog.textContent=`SELECT ${k+1}/${cands.length}…`;
+      await sleep(0);
+      const t=tuneEvaluate(pairsData,cands[k],WARMUP,iSplit);
+      const pass=t.n>=TUNE_GATE.selN&&t.exp!=null&&bT.exp!=null&&t.exp>bT.exp&&t.pf!=null&&t.pf>=TUNE_GATE.selPF;
+      rows.push({cfg:cands[k],train:t,hold:null,verdict:pass?'SELECT lulus → CONFIRM':'SELECT gagal'});
+      await sleep(0);
+    }
+    const contenders=rows.filter(r=>r.verdict.startsWith('SELECT lulus')).sort((a,b)=>b.train.exp-a.train.exp).slice(0,3);
+    for(const r of contenders){
+      prog.textContent=`CONFIRM p${r.cfg.minProb}/${r.cfg.regime}…`;
+      await sleep(0);
+      r.hold=tuneEvaluate(pairsData,r.cfg,iSplit,nSteps);
+      const ok=r.hold.n>=TUNE_GATE.confN&&r.hold.exp!=null&&bH.exp!=null&&r.hold.exp>bH.exp&&r.hold.exp>0;
+      r.verdict=ok?'CONFIRM lulus ✓':'CONFIRM gagal (rollback)';
+      r.confPass=ok;
+      await sleep(0);
+    }
+    const win=contenders.filter(r=>r.confPass).sort((a,b)=>b.hold.exp-a.hold.exp)[0]||null;
+    const fmtE=e=>e!=null?e.toFixed(2):'—';
+    const verdict=win?`MENANG: minProb${win.cfg.minProb}/${win.cfg.regime}/smc${win.cfg.smc?'ON':'OFF'} (holdout EXP ${fmtE(win.hold.exp)} vs baseline ${fmtE(bH.exp)})`:'TIADA PERUBAHAN (rollback ke baseline)';
+    tuneWinner=win?{...win.cfg}:null;
+    document.getElementById('tuneApply').disabled=!tuneWinner;
+    const j=tuneLoad();
+    j.runs.push({ts:Date.now(),hypo,mode,seed,budget,scope,split:[WARMUP,iSplit,nSteps],
+      baseline:{cfg:base,train:bT,hold:bH},
+      trials:rows.map(r=>({cfg:r.cfg,train:r.train,hold:r.hold,verdict:r.verdict})),winner:tuneWinner,
+      winnerHold:win?+win.hold.exp.toFixed(3):null,verdict});
+    tuneSave(j);tuneRenderJournal();
+    const fmtPF=p=>p==null?'—':p===Infinity?'∞':p.toFixed(2);
+    document.getElementById('tuneRows').innerHTML=rows.map((r,k)=>{
+      const c=r.cfg;
+      const mT=`${r.train.n}/${fmtE(r.train.exp)}/${fmtPF(r.train.pf)}`;
+      const mH=r.hold?`${r.hold.n}/${fmtE(r.hold.exp)}`:'—';
+      const vc=r.verdict.includes('lulus')?'t-win':(r.verdict.includes('gagal')||r.verdict.includes('rollback')?'t-loss':'t-dim');
+      return`<tr><td>${k+1}</td><td style="font-weight:700">p${c.minProb}/${c.regime}/smc${c.smc?'ON':'OFF'}</td><td>${mT}</td><td>${mH}</td><td class="${vc}">${esc(r.verdict)}</td></tr>`;
+    }).join('');
+    document.getElementById('tuneOut').innerHTML=`🔬 <b>Tune Lab</b> (${pairsData.length} pair · train ${WARMUP}–${iSplit} · holdout ${iSplit}–${nSteps}) · Baseline train EXP ${fmtE(bT.exp)}(N${bT.n}) / holdout ${fmtE(bH.exp)}(N${bH.n}) → <b>${esc(verdict)}</b>`;
+    showToast(win?'Tune Lab: pemenang — semak jadual & Apply':'Tune Lab: tiada calon melepasi gate (baseline kekal)',win?'ok':'');
+  }finally{
+    tuneRunning=false;btn.disabled=false;btn.classList.remove('scanning');prog.textContent='';
+  }
+}
+function tuneModeUI(){
+  if(!document.getElementsByClassName)return;
+  const show=document.getElementById('tuneMode').value==='llm';
+  for(const el of document.getElementsByClassName('tune-llm'))el.style.display=show?'':'none';
+}
+function tuneRenderJournal(){
+  const runs=tuneLoad().runs.slice(-10).reverse();
+  document.getElementById('tuneJrnRows').innerHTML=runs.length?runs.map(r=>{
+    const w=r.winner?`p${r.winner.minProb}/${r.winner.regime}`:'—';
+    return`<tr><td>${new Date(r.ts).toLocaleString('ms-MY',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</td><td style="font-family:var(--sans);font-size:11px">${esc(r.hypo).slice(0,60)}</td><td>${esc(r.mode)}/${r.budget}</td><td>p70/smart → ${w}</td><td class="${r.winner?'t-win':'t-dim'}" style="font-family:var(--sans);font-size:11px">${esc(r.verdict).slice(0,80)}</td></tr>`;
+  }).join(''):'<tr><td colspan="5" class="t-dim">Jurnal kosong.</td></tr>';
+}
+function tuneApplyWinner(){
+  if(!tuneWinner){showToast('Tiada pemenang — jalankan Tune Lab dahulu','err');return;}
+  document.getElementById('probSlider').value=tuneWinner.minProb;
+  document.getElementById('probVal').textContent=tuneWinner.minProb;
+  document.getElementById('regimeSel').value=tuneWinner.regime;
+  document.getElementById('smcReq').checked=tuneWinner.smc;
+  onSettingsChange();
+  showToast(`Tetapan Tune Lab diguna: prob ${tuneWinner.minProb}, regime ${tuneWinner.regime}, SMC ${tuneWinner.smc?'ON':'OFF'}`,'ok');
+}
+function tuneExport(){
+  const blob=new Blob([JSON.stringify(tuneLoad(),null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='tunelab_journal_'+new Date().toISOString().slice(0,10)+'.json';a.click();
+  showToast('Jurnal Tune Lab dieksport','ok');
+}
+function tuneImport(input){
+  const f=input.files&&input.files[0];if(!f)return;
+  const rd=new FileReader();
+  rd.onload=()=>{try{
+    const d=JSON.parse(rd.result);
+    if(!d||!Array.isArray(d.runs))throw 0;
+    const j=tuneLoad();j.runs=j.runs.concat(d.runs).slice(-50);tuneSave(j);tuneRenderJournal();
+    showToast('Jurnal diimport (+'+d.runs.length+' larian)','ok');
+  }catch(e){showToast('Fail jurnal tidak sah','err');}};
+  rd.readAsText(f);input.value='';
+}
+function tuneClear(){
+  if(!confirm('Padam SEMUA jurnal Tune Lab?'))return;
+  localStorage.removeItem(TUNE_KEY);tuneRenderJournal();showToast('Jurnal dipadam','ok');
+}
+
+updateSessionUI();setInterval(updateSessionUI,60000);initMatrix();jRender();tuneRenderJournal();
 </script>
 </body>
 </html>

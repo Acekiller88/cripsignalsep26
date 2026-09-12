@@ -203,5 +203,23 @@ Mekanisme edge LIQ-off: trade yang disekat gate (= SL ketat / pool TP2 dekat) me
 
 **Harness (pembangun)**: semua driver kini data-sebenar (override `fetchKlines` dengan klines 2017–2025 kerana sandbox sekat exchange): `backtest` (kanonik, AB+cap), `unit` (32), `seenet` (fee-net). Pin-masa dikekalkan untuk kebolehulangan.
 
+## 12. v8.3 TUNE LAB — ejen talaan (100% percuma, tempatan)
+
+**Keputusan seni bina** (pengguna serah pada saya; syarat: tanpa masalah sambungan + 100% percuma): ejen deterministik dalam-pelayar + hook LLM tempatan pilihan. Tiada API cloud, tiada bayaran, tiada pergantungan sambungan luar selain klines live sedia ada.
+
+**Rujukan**: ECC — skills berversi, memory vault Markdown, research-first, self-hosted models (affaan-m/ECC) + autobacktest — two-phase gate select/confirm, preflight, rollback (LeFi8/autobacktest).
+
+**Komponen**:
+1. Ruang 12 kombo: minProb{65,70,75} × regime{smart,all} × SMC{ON,OFF}; liq-OFF & ADX-ON dikunci (§10).
+2. Split 70/30 train/holdout atas data yang ditarik sekali (kongsi semua calon).
+3. Calon: rawak berseed (default, boleh-ulang) atau LLM tempatan (Ollama /api/chat atau OpenAI-serasi /v1, format JSON, preflight + dedup + top-up rawak, fallback penuh jika LLM mati).
+4. Gate SELECT (N≥15, PF≥1, EXP>baseline) → CONFIRM top-3 (N≥8, EXP>baseline, EXP>0) → MENANG atau rollback.
+5. Hipotesis wajib pra-larian; Jurnal Talaan (localStorage + export/import, 50 larian); lessons = 3 larian terakhir untuk LLM; Apply pemenang → kawalan live.
+6. Skill kanonik: `skills/tune-analyst.md` (kembar ringkas embedded sebagai `TUNE_SKILL`).
+
+**Ujian**: node --check ✓ · unit 32/32 ✓ · backtest pinned tidak berubah (N=151/−0.14) ✓ · tune e2e (rawak seed7/bajet4 + LLM-stub dgn 1 calon rosak): SELECT/CONFIRM/rollback/top-up/journal semua betul — contoh sebenar: p65/all/smcOFF lulus SELECT (train N125/+0.07) tetapi CONFIRM gagal (holdout −0.26) → rollback ✓.
+
+**Had jujur**: holdout 30% daripada 300 candle = kuasa lemah (N≈10–50); gate direka ketat supaya default = rollback. Ejen tidak boleh mencipta edge — hanya memilih konfigurasi yang melepasi bukti. Trial Tune Lab pengguna TIDAK dikira dalam bajet kajian (38) — direkod dalam jurnal masing-masing.
+
 ---
 *Bukan nasihat kewangan. Kajian penerokaan — keputusan strategi memerlukan pengesahan live.*

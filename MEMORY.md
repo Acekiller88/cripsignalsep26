@@ -41,3 +41,8 @@
 - Produk: buang Mod Demo/genDemo*/cabang demo/teks demo; fetch live sahaja; tajuk v8.2; grep -i demo kosong. Logik tidak berubah (seenet pra/pasca identikal bit demi bit).
 - Harness v8test dibina semula (sandbox baharu memadamnya): run.cjs + driver_backtest (kanonik real, AB+cap) + driver_unit (32 ujian) + driver_seenet; realdata dimuat turun semula (10 CSV+JSON, saiz/kiraan sama).
 - Pinned v8.2: backtest default 10x2000 N=151/WR43%/EXP-0.14R/PF0.66; unit 32/32; seenet 465/-0.049. SOP live+backtest manual: laporan §11.
+
+## v8.3 TUNE LAB (ejen talaan percuma/tempatan)
+- Keputusan: ejen deterministik (rawak berseed + gate dua-fasa + jurnal) + hook LLM tempatan (Ollama/LM Studio). Tiada cloud/API berbayar. Rujukan: ECC + autobacktest.
+- Ruang 12 kombo (prob/regime/smc); split 70/30; SELECT N≥15/PF≥1/EXP>base → CONFIRM top-3 N≥8/EXP>base/EXP>0 → menang/rollback. Hipotesis wajib. Skill: skills/tune-analyst.md.
+- Ujian: check ✓ unit 32/32 ✓ pinned N=151/-0.14 ✓ tune-e2e (rawak+LLM-stub, rollback/top-up/journal betul) ✓.
