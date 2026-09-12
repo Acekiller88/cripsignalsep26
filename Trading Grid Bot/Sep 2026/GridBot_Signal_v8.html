@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GRID SIGNAL v8.3 TUNE — SMC + Derivatives + Exit Engine (data live sahaja)</title>
+<title>GRID SIGNAL v8.4 AUDIT — SMC + Derivatives + Exit Engine (data live sahaja)</title>
 <style>
 :root{
   --bg:#0b0f19;--card:#151d30;--accent:#1e2942;--border:#263554;
@@ -117,12 +117,13 @@ footer{margin-top:24px;padding-top:12px;border-top:1px solid var(--border);color
 
 <header>
   <div class="logo">
-    <h1>⛭ GRID SIGNAL v8.3</h1>
+    <h1>⛭ GRID SIGNAL v8.4</h1>
     <p>SMC + Derivatives Engine · Exit Engine (BE+Partial) · CHoCH · Protections · Pionex Grid Translator</p>
   </div>
   <div class="hdr-right">
     <div class="pill" id="sessionPill">SESSION: <span id="sessionTxt">—</span></div>
     <div class="pill" id="biasPill">BIAS: <span id="biasTxt">—</span></div>
+    <div class="pill" id="fgiPill">FGI: <span id="fgiTxt">—</span></div>
     <div class="pill" id="statusPill">IDLE</div>
     <button class="btn" id="scanBtn" onclick="startScan()">▶ SCAN PASARAN</button>
   </div>
@@ -201,6 +202,15 @@ footer{margin-top:24px;padding-top:12px;border-top:1px solid var(--border);color
 <table>
   <thead><tr><th>Gred</th><th>Signal</th><th>Menang</th><th>Kalah</th><th>Win %</th><th>Jumlah R</th><th>Verdict</th></tr></thead>
   <tbody id="jrnByGrade"><tr><td colspan="7" class="t-dim">Belum ada data — jalankan scan dan biarkan signal matang.</td></tr></tbody>
+</table>
+</div>
+<div style="overflow-x:auto">
+<table>
+  <div class="cmd-sub" style="margin:4px 0">Kalibrasi keyakinan (adakah prob tinggi menang lebih kerap?)</div>
+<div style="overflow-x:auto;margin-bottom:10px">
+<table>
+  <thead><tr><th>Baldi Prob</th><th>Selesai</th><th>Win %</th><th>Jumlah R</th></tr></thead>
+  <tbody id="jrnCalib"><tr><td colspan="4" class="t-dim">Belum ada data.</td></tr></tbody>
 </table>
 </div>
 <div style="overflow-x:auto">
@@ -336,10 +346,11 @@ footer{margin-top:24px;padding-top:12px;border-top:1px solid var(--border);color
     <li><b>v8 — Exit Engine:</b> jurnal &amp; backtest guna peraturan exit yang sama (BE @+1R, 50% @ TP1). Status <b>BE</b> = scratch 0R (diselamatkan dari SL); <b>TP1+BE</b> = +1.0R; <b>TP1+TP2</b> = +2.75R. Lajur <b>MAE/MFE</b> merekod ekskursi setiap trade untuk kalibrasi SL/TP.</li>
     <li><b>v8 — TP2 likuiditi:</b> TP2 dihadkan pada pool likuiditi terdekat (equal highs/lows, atau high/low 50-candle HTF) — label <b>"liq🎯"</b> pada kad. Jika tiada ruang 2R ke pool, signal disekat (status matriks "TP2 disekat likuiditi").</li>
     <li><b>v8 — Trigger:</b> <b>ADX mesti menaik</b> (tanda ↑ pada kad) untuk semua signal — memotong whipsaw Supertrend dalam pasaran chop. Entry basi tanpa sweep/displacement kebanyakannya tersingkir oleh tapisan ini.</li>
+    <li><b>v8.4 — Audit:</b> setiap kad tunjuk pecahan keyakinan (asas+SMC+HTF+sesi+derivatif) dan syarat invalidasi. Jurnal ada jadual kalibrasi (WR mengikut baldi prob) — semak sama ada prob tinggi benar-benar menang lebih kerap. Pil FGI = sentimen pasaran (paparan sahaja, tidak mengubah signal).</li>
   </ol>
 </details>
 
-<footer>GRID SIGNAL v8.3 · v7 + Enjin Exit (BE @+1R, separa TP1, MAE/MFE) + Gred Berpemberat Bukti + TP Likuiditi + Trigger ADX · Rujukan: freqtrade, jesse-ai, smart-money-concepts, MiND-Shot, Lopez de Prado · Bukan nasihat kewangan. DYOR.</footer>
+<footer>GRID SIGNAL v8.4 · v7 + Enjin Exit (BE @+1R, separa TP1, MAE/MFE) + Gred Berpemberat Bukti + TP Likuiditi + Trigger ADX · Rujukan: freqtrade, jesse-ai, smart-money-concepts, MiND-Shot, Lopez de Prado · Bukan nasihat kewangan. DYOR.</footer>
 
 <div id="toast"></div>
 
@@ -717,12 +728,16 @@ function gradePasses(grade){
   if(gradeFilter==='b')return grade!=='C';
   return true;
 }
+let FGI=null;
+function parseFGI(d){try{const v=d&&d.data&&d.data[0];const x=+v.value;if(!isFinite(x))return null;return{value:x,label:v.value_classification||''};}catch(e){return null;}}
+async function fetchFGI(){try{const ctrl=new AbortController();const t=setTimeout(()=>ctrl.abort(),8000);const res=await fetch('https://api.alternative.me/fng/?limit=1',{signal:ctrl.signal,cache:'no-store'});clearTimeout(t);if(!res.ok)throw 0;return parseFGI(await res.json());}catch(e){return null;}}
 async function startScan(){
   if(isScanning)return;isScanning=true;clearTimeout(autoTimer);failCount=0;
   const btn=document.getElementById('scanBtn');btn.disabled=true;btn.classList.add('scanning');
   setStatus('SCANNING…');setProgress(0);scanResults={};
   document.getElementById('apiWarn').classList.remove('show');
   initMatrix();
+  fetchFGI().then(f=>{FGI=f;document.getElementById('fgiTxt').textContent=f?`${f.value} (${f.label})`:'—';});
   let done=0;
   for(const sym of PAIRS){
     try{
@@ -783,6 +798,14 @@ function buildCard(sym,r,rank){
   const tp2Lbl=(isL?r.liqCapL:r.liqCapS)?'TP2 (liq🎯)':'TP2 (3.5R)';
   const actCss=r.grade==='A+'||r.grade==='A'?'execute':r.grade==='B'?'reduce':'skip';
   const actLbl=r.grade==='A+'||r.grade==='A'?'✅ EXECUTE — deploy grid':r.grade==='B'?'⚠ REDUCE — saiz separuh':'❌ SKIP';
+  const q2=isL?r.longQ:r.shortQ;
+  const sessB=r.sessionCtx.highPriority?6:r.sessionCtx.tradeableSess?2:-10;
+  const dS=isL?r.dLong:r.dShort;
+  const dB=dS&&dS.max>0?Math.round((dS.score/dS.max-0.5)*12):0;
+  const hB=(isL?r.htfBull:r.htfBear)?8:((isL?r.htfBear:r.htfBull)?-8:0);
+  const smcB=+(q2.score*0.6).toFixed(1);
+  const rawP=Math.round(30+q2.score*0.6+hB+sessB+dB);
+  const clampNote=rawP!==r.signalProb?` (diclam ${rawP}→${r.signalProb})`:'';
   const g=r.gridPlan;
   const gridHtml=g?`
   <div class="gridbox">
@@ -813,6 +836,8 @@ function buildCard(sym,r,rank){
       <div class="kv"><span>Prob</span><b>${r.signalProb}%</b></div>
     </div>
     <div style="font-size:10px;color:var(--dim)">Konfluens SMC: <b style="color:var(--txt)">${q.wScore!=null?q.wScore.toFixed(1)+'/'+q.wMax:q.passed+'/'+q.total}</b> · Derivatif: <b style="color:var(--txt)">${dQ?dQ.score+'/'+dQ.max:'—'}</b> · Regime: ${r.regime} · RSI ${r.rsiVal.toFixed(0)} · ADX ${r.adxVal?.toFixed(0)??'—'}${r.adxRising?'↑':''} · Trend ${r.barsInTrend} bar</div>
+    <div style="font-size:10px;color:var(--dim)">Keyakinan ${r.signalProb}% = asas 30 + SMC ${smcB} + HTF ${hB>=0?'+':''}${hB} + sesi ${sessB>=0?'+':''}${sessB} + derivatif ${dB>=0?'+':''}${dB}${clampNote}${(isL?r.liqCapL:r.liqCapS)?' · TP2 dicap likuiditi':''}</div>
+    <div style="font-size:10px;color:var(--warn)">Invalidasi: batal jika candle ${currentTF} tutup melepasi SL (${fmt(sl)}) — struktur rosak, jangan averaging-down.</div>
     <div class="chips">${chips}</div>
     <div class="chips" style="margin-top:2px">${dChips}</div>
     ${gridHtml}
@@ -924,7 +949,7 @@ function jRecord(sym,r){
   // elak duplikasi: satu signal terbuka per pair+tf+arah
   if(j.some(x=>x.sym===sym&&x.tf===currentTF&&x.dir===r.direction&&x.status==='OPEN'))return;
   const isL=r.direction==='LONG';
-  j.push({id:Date.now()+'-'+sym,ts:Date.now(),sym,tf:currentTF,dir:r.direction,grade:r.grade,prob:r.signalProb,
+  j.push({id:Date.now()+'-'+sym,ts:Date.now(),sym,tf:currentTF,dir:r.direction,grade:r.grade,prob:r.signalProb,fgi:FGI?FGI.value:null,
     entry:r.entry,sl:isL?r.longSL:r.shortSL,tp1:isL?r.longTP1:r.shortTP1,tp2:isL?r.longTP2:r.shortTP2,
     regime:r.regime,session:r.sessionCtx.session,conf:(isL?r.longQ:r.shortQ).passed,status:'OPEN',res:null,rMult:null,barsOpen:0});
   jSave(j);
@@ -979,6 +1004,14 @@ function verdict(s){
   if(s.pf>=1.0)return'<span class="t-open">MARGINAL</span>';
   return'<span class="t-loss">TIADA EDGE ✗</span>';
 }
+function jCalib(list){
+  const buckets=[['50–59',50,60],['60–69',60,70],['70–79',70,80],['80+',80,101]];
+  return buckets.map(([lbl,lo,hi])=>{
+    const sub=list.filter(t=>t.status!=='OPEN'&&t.prob>=lo&&t.prob<hi);
+    const w=sub.filter(t=>t.rMult>0).length;
+    return{lbl,n:sub.length,wr:sub.length?w/sub.length*100:null,sumR:sub.reduce((s,t)=>s+(t.rMult||0),0)};
+  });
+}
 function jRender(){
   const j=jLoad();
   document.getElementById('jrnBadge').textContent=j.length+' rekod';
@@ -998,6 +1031,8 @@ function jRender(){
     return`<tr><td style="font-weight:700">${g}</td><td>${sub.n}</td><td class="t-win">${sub.wins}</td><td class="t-loss">${sub.losses}</td><td>${sub.wr!=null?sub.wr.toFixed(0)+'%':'—'}</td><td>${sub.sumR>0?'+':''}${sub.sumR.toFixed(1)}R</td><td>${verdict(sub)}</td></tr>`;
   }).join('');
   document.getElementById('jrnByGrade').innerHTML=rows||'<tr><td colspan="7" class="t-dim">Belum ada data — jalankan scan dan biarkan signal matang.</td></tr>';
+  const cal=jCalib(j);
+  document.getElementById('jrnCalib').innerHTML=cal.map(c=>`<tr><td>${c.lbl}%</td><td>${c.n}</td><td>${c.wr!=null?c.wr.toFixed(0)+'%':'—'}</td><td>${c.n?(c.sumR>0?'+':'')+c.sumR.toFixed(1)+'R':'—'}</td></tr>`).join('');
   // senarai terkini
   const recent=[...j].sort((a,b)=>b.ts-a.ts).slice(0,30);
   document.getElementById('jrnRows').innerHTML=recent.length?recent.map(t=>{

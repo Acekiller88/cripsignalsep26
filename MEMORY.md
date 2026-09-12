@@ -46,3 +46,8 @@
 - Keputusan: ejen deterministik (rawak berseed + gate dua-fasa + jurnal) + hook LLM tempatan (Ollama/LM Studio). Tiada cloud/API berbayar. Rujukan: ECC + autobacktest.
 - Ruang 12 kombo (prob/regime/smc); split 70/30; SELECT N≥15/PF≥1/EXP>base → CONFIRM top-3 N≥8/EXP>base/EXP>0 → menang/rollback. Hipotesis wajib. Skill: skills/tune-analyst.md.
 - Ujian: check ✓ unit 32/32 ✓ pinned N=151/-0.14 ✓ tune-e2e (rawak+LLM-stub, rollback/top-up/journal betul) ✓.
+
+## v8.4 AUDIT (dari prompt arkitek)
+- Kad: pecahan keyakinan (asas+SMC+HTF+sesi+derivatif+clamp) + garis invalidasi. Jurnal: jadual kalibrasi jCalib (WR/baldi prob). FGI percuma (paparan sahaja) + medan jurnal.
+- Ditolak: on-chain/berbayar, Python-rewrite, multi-engine, janji WR58-68 (bukti: 26-51%).
+- Ujian: 40/40 (8 baharu); pinned N=151/-0.14; tune e2e lulus. Pepijat ujian (HTF era) dibetulkan.

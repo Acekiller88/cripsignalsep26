@@ -221,5 +221,21 @@ Mekanisme edge LIQ-off: trade yang disekat gate (= SL ketat / pool TP2 dekat) me
 
 **Had jujur**: holdout 30% daripada 300 candle = kuasa lemah (N≈10–50); gate direka ketat supaya default = rollback. Ejen tidak boleh mencipta edge — hanya memilih konfigurasi yang melepasi bukti. Trial Tune Lab pengguna TIDAK dikira dalam bajet kajian (38) — direkod dalam jurnal masing-masing.
 
+## 13. v8.4 AUDIT — analisis prompt arkitek & idea yang diterapkan
+
+Pengguna membekalkan prompt "Quant Trading System Architect" (fasa berdisiplin, 7 lapisan, output format, sasaran WR 58–68%, Python). Dianalisis dan ditapis dengan kekangan projek (100% percuma, tanpa masalah sambungan, satu-fail pelayar) + bukti kajian (§10).
+
+**Diterapkan (4 slice audit, tiada perubahan strategi)**:
+1. Pecahan keyakinan pada kad: `Keyakinan X% = asas 30 + SMC + HTF + sesi + derivatif (+nota clamp, +nota TP2-cap)`.
+2. Garis invalidasi pada kad: batal jika candle TF tutup melepasi SL.
+3. Jadual kalibrasi jurnal (`jCalib`): WR & R mengikut baldi prob (50–59/60–69/70–79/80+) — audit sama ada prob tinggi benar-benar menang.
+4. Pil sentimen FGI (alternative.me, percuma, fail-soft, paparan sahaja) + medan `fgi` dalam rekod jurnal untuk analisis masa depan.
+
+**Ditolak/ditangguh (dengan sebab)**: on-chain/sentimen-berbayar/order-flow L2 (kos + sambungan) · tulis-semula Python (musnahkan reka bentuk satu-fail) · multi-engine (tiada bukti, risiko overfit) · janji WR 58–68% (bertentangan bukti 8 tahun: 26–51% kasar, bersih-fee ≈ breakeven).
+
+**Proses (per disiplin prompt)**: spec 4 slice + kriteria terima pra-takrif → build → test (8 assert baharu: parseFGI×2, jCalib×3, kad-e2e×3) → review (satu kegagalan ujian dikesan & dibetulkan: HTF ujian tidak sepadan era — pepijat ujian, bukan produk) → release checklist di bawah.
+
+**Release checklist v8.4**: node --check ✓ · unit 40/40 ✓ · backtest pinned tidak berubah (N=151/WR43%/EXP−0.14) ✓ · tune e2e lulus ✓ · grep demo kosong ✓.
+
 ---
 *Bukan nasihat kewangan. Kajian penerokaan — keputusan strategi memerlukan pengesahan live.*
