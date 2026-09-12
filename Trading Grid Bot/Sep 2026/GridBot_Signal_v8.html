@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GRID SIGNAL v8 — SMC + Derivatives + Exit Engine</title>
+<title>GRID SIGNAL v8.2 LIVE — SMC + Derivatives + Exit Engine (data live sahaja)</title>
 <style>
 :root{
   --bg:#0b0f19;--card:#151d30;--accent:#1e2942;--border:#263554;
@@ -117,7 +117,7 @@ footer{margin-top:24px;padding-top:12px;border-top:1px solid var(--border);color
 
 <header>
   <div class="logo">
-    <h1>⛭ GRID SIGNAL v8</h1>
+    <h1>⛭ GRID SIGNAL v8.2</h1>
     <p>SMC + Derivatives Engine · Exit Engine (BE+Partial) · CHoCH · Protections · Pionex Grid Translator</p>
   </div>
   <div class="hdr-right">
@@ -130,7 +130,7 @@ footer{margin-top:24px;padding-top:12px;border-top:1px solid var(--border);color
 
 <div id="progressWrap"><div id="progressBar"></div></div>
 
-<div class="warnbar" id="apiWarn">⚠ Kebanyakan permintaan API gagal. Kemungkinan sekatan rangkaian/region terhadap Binance. Cuba aktifkan <b>Mod Demo</b> untuk melihat cara dashboard berfungsi, atau guna VPN.</div>
+<div class="warnbar" id="apiWarn">⚠ Kebanyakan permintaan API gagal. Kemungkinan sekatan rangkaian/region terhadap Binance. Periksa sambungan internet atau guna VPN — dashboard ini hanya berfungsi dengan data live.</div>
 <div class="warnbar" id="defWarn">🛡 <b>MOD DEFENSIF AKTIF</b> — 3+ signal kena SL dalam 24 jam. Hanya signal gred A+ dibenarkan sehingga keadaan pulih (rujukan: freqtrade StoplossGuard).</div>
 
 <div class="cmd-grid">
@@ -169,7 +169,6 @@ footer{margin-top:24px;padding-top:12px;border-top:1px solid var(--border);color
   </div>
   <div class="ctrl-check"><input type="checkbox" id="smcReq" checked onchange="onSettingsChange()"><span>Wajib konfluens SMC (gred ≥B, skor ≥3.5)</span></div>
   <div class="ctrl-check"><input type="checkbox" id="autoScan"><span>Auto-scan 90s</span></div>
-  <div class="ctrl-check"><input type="checkbox" id="demoMode"><span>Mod Demo (data simulasi)</span></div>
 </div>
 
 <div class="sec-title">🎯 TOP SETUP <span class="sec-badge" id="sigCount">0 signal</span></div>
@@ -266,7 +265,7 @@ footer{margin-top:24px;padding-top:12px;border-top:1px solid var(--border);color
   <tbody id="btByReg"><tr><td colspan="4" class="t-dim">—</td></tr></tbody>
 </table>
 </div>
-<p class="cmd-sub" style="margin-top:6px">⚠ Nota kejujuran (rujukan jesse-ai): replay hanya guna candle ≤ masa keputusan (tiada look-ahead), SL disemak DAHULU dalam candle yang sama (konservatif). v8: SL→BE selepas +1R, 50% separa di TP1; MAE/MFE dalam unit R. Keputusan masa lalu tidak menjamin masa depan. Sampel &lt; 30 signal = belum signifikan.</p>
+<p class="cmd-sub" style="margin-top:6px">⚠ Nota kejujuran (rujukan jesse-ai): data klines LIVE Binance (tiada data simulasi); replay hanya guna candle ≤ masa keputusan (tiada look-ahead), SL disemak DAHULU dalam candle yang sama (konservatif). v8: SL→BE selepas +1R, 50% separa di TP1; MAE/MFE dalam unit R. Keputusan masa lalu tidak menjamin masa depan. Sampel &lt; 30 signal = belum signifikan.</p>
 
 <details class="manual">
   <summary>📖 Panduan Ringkas — Signal → Grid Bot Pionex (SOP v8)</summary>
@@ -287,7 +286,7 @@ footer{margin-top:24px;padding-top:12px;border-top:1px solid var(--border);color
   </ol>
 </details>
 
-<footer>GRID SIGNAL v8 · v7 + Enjin Exit (BE @+1R, separa TP1, MAE/MFE) + Gred Berpemberat Bukti + TP Likuiditi + Trigger ADX · Rujukan: freqtrade, jesse-ai, smart-money-concepts, MiND-Shot, Lopez de Prado · Bukan nasihat kewangan. DYOR.</footer>
+<footer>GRID SIGNAL v8.2 · v7 + Enjin Exit (BE @+1R, separa TP1, MAE/MFE) + Gred Berpemberat Bukti + TP Likuiditi + Trigger ADX · Rujukan: freqtrade, jesse-ai, smart-money-concepts, MiND-Shot, Lopez de Prado · Bukan nasihat kewangan. DYOR.</footer>
 
 <div id="toast"></div>
 
@@ -310,7 +309,6 @@ function setStatus(txt){document.getElementById('statusPill').textContent=txt;}
 
 /* ══════════════════ DATA ══════════════════ */
 async function fetchKlines(symbol,interval,limit){
-  if(document.getElementById('demoMode').checked)return genDemoCandles(symbol,interval,limit);
   const eps=['https://api.binance.com/api/v3/klines','https://data-api.binance.vision/api/v3/klines','https://api1.binance.com/api/v3/klines'];
   let lastErr=null;
   for(const base of eps){
@@ -327,7 +325,6 @@ async function fetchKlines(symbol,interval,limit){
 }
 /* ══════════ v7 FASA 2: LAPISAN DERIVATIF (Binance Futures public API — tiada key) ══════════ */
 async function fetchDerivatives(symbol){
-  if(document.getElementById('demoMode').checked)return genDemoDerivs(symbol);
   const out={funding:null,oiChg:null,takerRatio:null,ok:false};
   const to=8000;
   const get=async url=>{const ctrl=new AbortController();const t=setTimeout(()=>ctrl.abort(),to);
@@ -343,11 +340,6 @@ async function fetchDerivatives(symbol){
     if(a>0){out.oiChg=(b-a)/a*100;out.ok=true;}} // % perubahan OI ~5 jam
   if(tk&&tk.length){const avg=tk.reduce((s,x)=>s+ +x.buySellRatio,0)/tk.length;out.takerRatio=avg;out.ok=true;} // >1 = taker buy dominan
   return out;
-}
-function genDemoDerivs(symbol){
-  let seed=7;for(const ch of symbol)seed=(seed*33+ch.charCodeAt(0))>>>0;
-  const rnd=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};
-  return{funding:+((rnd()-0.5)*0.08).toFixed(4),oiChg:+((rnd()-0.4)*8).toFixed(2),takerRatio:+(0.8+rnd()*0.5).toFixed(3),ok:true};
 }
 /* Nilai derivatif → skor konfluens per arah + amaran blacklist funding melampau */
 function scoreDerivatives(d,direction){
@@ -378,51 +370,6 @@ function pMarkClosed(sym,wasSL){
 }
 function pInCooldown(sym){const p=pLoad();const t=p.cooldowns[sym];return t&&(Date.now()-t)<COOLDOWN_MS;}
 function pDefensiveMode(){const p=pLoad();return p.slLog.filter(t=>Date.now()-t<24*3600e3).length>=3;}
-
-/* Mod demo: random-walk + senario SMC berskrip (sweep → displacement → BOS) supaya UI boleh diuji tanpa API */
-function genDemoCandles(symbol,interval,limit){
-  let seed=0;for(const ch of symbol)seed=(seed*31+ch.charCodeAt(0))>>>0;
-  const isHTF=interval==='4h'||interval==='1d';
-  const rnd=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};
-  const scenario=rnd(); // <0.35 bull setup, <0.5 bear setup, selainnya range/noise
-  const bullSetup=scenario<0.35,bearSetup=!bullSetup&&scenario<0.5;
-  const dirF=bullSetup?1:bearSetup?-1:0;
-  let px=symbol.startsWith('BTC')?93000:symbol.startsWith('ETH')?3300:10+rnd()*90;
-  const vol=0.006+rnd()*0.006;
-  const out=[];let t=Date.now()-limit*3600e3;
-  for(let i=0;i<limit;i++){
-    const prog=i/limit;
-    // fasa trend: separuh kedua siri condong ikut arah senario (utk EMA/HTF align) — masih bercampur merah/hijau
-    let drift=(rnd()-0.5)*vol+(prog>0.4?dirF*vol*0.22:0);
-    let open=px,close=Math.max(open*(1+drift),1e-8);
-    let hi=Math.max(open,close)*(1+rnd()*vol*0.5);
-    let lo=Math.min(open,close)*(1-rnd()*vol*0.5);
-    // Senario LTF berskrip pada candle-candle terakhir: pullback → sweep → reclaim → displacement
-    if(!isHTF&&dirF!==0){
-      const k=limit-i;
-      if(k>=7&&k<=10){ // pullback melawan arah (sejukkan RSI)
-        close=open*(1-vol*0.5*dirF);hi=Math.max(open,close)*(1+rnd()*vol*0.3);lo=Math.min(open,close)*(1-rnd()*vol*0.3);
-      }else if(k===6){ // liquidity sweep: wick menembusi low/high 20-candle lalu tutup semula
-        const win=out.slice(-20);
-        if(dirF>0){const pl=Math.min(...win.map(c=>c.low));lo=pl*0.994;close=Math.max(open*0.999,pl*1.004);hi=Math.max(open,close)*1.001;}
-        else{const ph=Math.max(...win.map(c=>c.high));hi=ph*1.006;close=Math.min(open*1.001,ph*0.996);lo=Math.min(open,close)*0.999;}
-      }else if(k===5){ // candle kecil selepas sweep (boleh merah)
-        close=open*(1-vol*0.2*dirF);hi=Math.max(open,close)*(1+rnd()*vol*0.2);lo=Math.min(open,close)*(1-rnd()*vol*0.2);
-      }else if(k===4){ // displacement: badan besar > 1.8x ATR
-        close=open*(1+vol*2.4*dirF);
-        hi=Math.max(open,close)*(1+rnd()*0.001);lo=Math.min(open,close)*(1-rnd()*0.001);
-      }else if(k===3){ // pullback kecil
-        close=open*(1-vol*0.3*dirF);hi=Math.max(open,close)*1.0005;lo=Math.min(open,close)*0.9995;
-      }else if(k<=2){ // follow-through / BOS sederhana
-        close=open*(1+vol*0.6*dirF);
-        hi=Math.max(open,close)*1.001;lo=Math.min(open,close)*0.999;
-      }
-    }
-    px=close;
-    out.push({time:t,open,high:hi,low:lo,close,volume:1000+rnd()*9000*(i>limit-8?2:1)});t+=3600e3;
-  }
-  return out;
-}
 
 /* ══════════════════ INDIKATOR ══════════════════ */
 function calcEMA(arr,period){const res=new Array(arr.length).fill(null);const k=2/(period+1);let started=false;for(let i=0;i<arr.length;i++){if(arr[i]==null||isNaN(arr[i])){res[i]=res[i-1]??null;continue}if(!started){res[i]=arr[i];started=true;continue}res[i]=arr[i]*k+(res[i-1]??arr[i])*(1-k);}return res;}
@@ -671,7 +618,7 @@ function analyzeCandles(candles,htfCandles,probThreshold,atTime,derivs){
   const regimeTradeable=regimeFilter==='all'||(regimeFilter==='smart'&&regimeObj.tradeable)||(regimeFilter==='trend'&&regime==='TREND_EXPANSION');
 
   // v8 P4: ADX mesti MENAIK (adx[n-1] > adx[n-3]) — potong whipsaw Supertrend dalam chop.
-  // NOTA: "flip segar ≤5 bar" asal digugurkan — data demo membuktikan ia terlalu ketat (flip 2% langkah,
+  // NOTA: "flip segar ≤5 bar" asal digugurkan — data kajian Fasa A membuktikan ia terlalu ketat (flip 2% langkah,
   // median trend ST(10,3) >100 bar → N≈0; penalti lembut pula memotong trade untung bersih).
   // Freshness kekal SEBAGAI MAKLUMAT: paparan "Trend N bar" + sweep dalam cip.
   const sessBonus=sessionCtx.highPriority?6:sessionCtx.tradeableSess?2:-10;

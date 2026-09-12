@@ -93,9 +93,9 @@ trend 10,872 → blacklist-lepas 10,872 (0% dibunuh) → regime 9,479 (13%)
 
 ## 8. Perubahan produk sesi ini (instrumentasi, tingkah laku default bit-identikal)
 
-- Panel backtest: suis `Tapisan likuiditi P3` + `Gate ADX menaik P4` (backtest sahaja; live sentiasa ON).
+- Panel backtest: suis `Tapisan likuiditi P3` + `Gate ADX menaik P4` (khusus backtest; live: liq ikut default OFF v8.1, ADX sentiasa ON).
 - Paparan `🔻 Funnel` + jadual `PECAHAN SESI & REGIME` setiap backtest; trade ditag sesi+regime ketika entry.
-- Ujian: 22/22 unit ✓ · base N=6/EXP+0.13 identikal ✓ · suis-OFF menghasilkan semula angka scratch (N=13/−0.48, N=14/+0.28) ✓ · jurnal ✓.
+- Ujian v8.2 (TIADA demo): 32/32 unit real-data ✓ · pinned backtest real (default v8.2, 10 pair × 2000 candle): N=151/WR43%/EXP−0.14R/PF0.66 ✓ · seenet N=465 kasar+0.019/bersih−0.049 ✓ · jurnal ✓. (Angka demo era-lalu tidak terpakai — kod demo dipadam, §11.)
 - Metodologi: harness pin-masa (Rabu 9 Sep 2026 12:00 UTC) — semua angka kajian boleh-ulang merentas larian/mesin.
 - v8.1 (data real §10): skip TP2-room OFF default (`liqGateOn=false`, kotak backtest tidak-checked, cap TP2 kekal). Demo-default kini N=14/EXP+0.28 (angka suis-OFF yang telah disahkan); pinned gates-ON eksplisit kekal N=6/+0.13.
 
@@ -182,6 +182,26 @@ Mekanisme edge LIQ-off: trade yang disekat gate (= SL ketat / pool TP2 dekat) me
 | ✅ UBAH (signifikan, dilaksanakan v8.1) | **Skip TP2-room OFF default** — cap TP2 kekal |
 | 🔬 PERHATI (suggestive, JANGAN kod) | NEUTRAL-regime lean · London/Overlap lean · A+ sniper-jarang · be08 neutral |
 | ⛔ JANGAN (bukti negatif/overfit) | minProb 75 · regime=all · trend-only · trail-capped · penapis feeR · penapis sesi/pair · harap gred A · dakwa untung bersih-fee |
+
+## 11. v8.2 LIVE — pembersihan demo penuh (atas permintaan pengguna)
+
+**Prinsip**: tiada data dummy/demo dalam sistem. `grep -i demo` ke atas produk = kosong.
+
+**Dibuang**: kotak `Mod Demo` · cabang `demoMode` dalam `fetchKlines`/`fetchDerivatives` · `genDemoCandles()` · `genDemoDerivs()` · semua teks berkaitan demo. Tajuk: GRID SIGNAL v8.2.
+
+**Tidak berubah (logik)**: `analyzeCandles`, exit engine, gred, regime, sesi, jurnal, backtest replay — disahkan: seenet pra/pasca purge identikal bit demi bit (N=465, kasar +0.019, bersih −0.049/−0.116).
+
+**SOP data live (PC pengguna, internet biasa)**:
+1. Buka fail HTML dalam pelayar → SCAN PASARAN → dashboard tarik klines + derivatif live Binance (3 endpoint ganti automatik; amaran jika rantau disekat → guna VPN).
+2. Jurnal merekod signal gred A+/A (ikut penapis) dan menyelesaikannya semasa scan berikutnya (peraturan exit v8).
+3. Protections aktif: cooldown 4j/pair, mod defensif selepas 3 SL/24j.
+
+**SOP backtest manual (data sebenar)**:
+1. Panel BACKTEST REPLAY → pilih skop pair + TF → JALANKAN → replay walk-forward atas klines live yang baru ditarik (300 LTF + 200 HTF setiap pair), tiada look-ahead, SL disemak dahulu.
+2. Baca: N/WR/EXP/PF + funnel + pecahan sesi/regime + MAE/MFE. Sampel <30 = belum signifikan.
+3. Suis P3/P4 untuk eksperimen sendiri (default = default live v8.2).
+
+**Harness (pembangun)**: semua driver kini data-sebenar (override `fetchKlines` dengan klines 2017–2025 kerana sandbox sekat exchange): `backtest` (kanonik, AB+cap), `unit` (32), `seenet` (fee-net). Pin-masa dikekalkan untuk kebolehulangan.
 
 ---
 *Bukan nasihat kewangan. Kajian penerokaan — keputusan strategi memerlukan pengesahan live.*

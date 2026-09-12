@@ -36,3 +36,8 @@
 - Full-history: BASE +0.03 (tiada edge) · LIQ-off +0.052 [+0.025,+0.079] SIGNIFIKAN, WR 51%, N=4687 · LIQ-off+P75 +0.05 (P75 tambah tiada) · REG-all +0.00 (RANGE −20.4R → regime-smart dibenarkan).
 - Tumbang atas 8thn: penapis sesi/pair (overfit tetingkap) · P75 · gred A<B · RANGE-untung. Kekal: runner, TP2-3.5R+cap, BE@1.0, ADX, SMC-required. Trail-capped WORSE (p≈0.0005).
 - v8.1: skip TP2-room OFF default (cap kekal). AMARAN: fee 0.055R median vs edge +0.052R → bersih ≈ breakeven/negatif; 2025 semasa −0.24R. Paper-trade dahulu.
+
+## v8.2 LIVE (pembersihan demo penuh)
+- Produk: buang Mod Demo/genDemo*/cabang demo/teks demo; fetch live sahaja; tajuk v8.2; grep -i demo kosong. Logik tidak berubah (seenet pra/pasca identikal bit demi bit).
+- Harness v8test dibina semula (sandbox baharu memadamnya): run.cjs + driver_backtest (kanonik real, AB+cap) + driver_unit (32 ujian) + driver_seenet; realdata dimuat turun semula (10 CSV+JSON, saiz/kiraan sama).
+- Pinned v8.2: backtest default 10x2000 N=151/WR43%/EXP-0.14R/PF0.66; unit 32/32; seenet 465/-0.049. SOP live+backtest manual: laporan §11.
